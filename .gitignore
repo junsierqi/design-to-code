@@ -1,0 +1,6 @@
+﻿.idea-to-code/
+docs/dev-reports/
+__pycache__/
+*.py[cod]
+*.bak
+.DS_Store

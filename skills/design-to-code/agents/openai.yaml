@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "Design To Code"
+  short_description: "Implement UI from visual designs"
+  default_prompt: "Use $design-to-code to implement this design as working, tested UI with screenshots and an acceptance report."
