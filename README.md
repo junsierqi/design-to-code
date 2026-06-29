@@ -1,26 +1,104 @@
-﻿# design-to-code
+# design-to-code
 
-A Codex skill for implementing frontend UI from visual design sources such as screenshots, mockups, wireframes, HTML prototypes, and Figma references.
+A Codex skill for implementing frontend UI from visual design sources such as screenshots, mockups, wireframes, HTML prototypes, live URLs, PDFs, and Figma references.
 
-It guides agents through design analysis, dependency auditing, mock generation, implementation, Playwright-based verification, screenshots, traceability, and acceptance-ready reporting. The skill is useful when the visual reference is the source of truth and the result should be working UI rather than a static review.
+`design-to-code` is a UI-specialized profile on top of `idea-to-code`. `idea-to-code` owns delivery lifecycle state, requirements, role gates, verification evidence, checkpoints, and closeout. `design-to-code` owns the UI-specific guidance for design-source analysis, component/interaction/state traceability, missing-backend mocks, browser verification, screenshots, and visual acceptance reporting.
 
 ## Use When
 
-- A user asks to implement a UI from a screenshot, mockup, wireframe, HTML prototype, or Figma link.
+- A user asks to implement UI from a screenshot, mockup, wireframe, HTML prototype, PDF, live URL, or Figma link.
+- The visual reference is the source of truth.
 - The design references backend APIs or data that may not exist yet.
-- The work needs responsive behavior, interaction testing, and screenshots.
-- The final output should include an implementation report and visual acceptance evidence.
+- The work needs responsive behavior, interaction testing, screenshots, and visual acceptance evidence.
 
 ## What's Included
 
-- `skills/design-to-code/SKILL.md` - agent workflow instructions
+- `skills/design-to-code/SKILL.md` - concise runtime entrypoint and idea-to-code foundation contract
+- `skills/design-to-code/references/` - focused UI implementation references
+- `skills/design-to-code/scripts/validate_design_to_code.py` - source-only repository contract validator
+- `skills/design-to-code/scripts/extract_html_interactions.py` - HTML prototype interaction extractor
+- `skills/design-to-code/scripts/generate_acceptance_report.py` - Markdown acceptance report generator
+- `skills/design-to-code/scripts/dogfood_playwright_fixture.py` - isolated Playwright dogfood fixture generator and runner
+- `skills/design-to-code/scripts/test_validate_design_to_code.py` - regression tests for the validator and skill contract
 - `skills/design-to-code/agents/openai.yaml` - Codex/OpenAI UI metadata
+- `scripts/install_skill.py` - dry-run capable installer for the skill directory
 
 ## Requirements
 
 - A frontend project to modify
 - Node/package tooling appropriate to the target project
 - Playwright when runtime UI verification is required
+- The `idea-to-code` skill for full lifecycle tracking
+
+`design-to-code` is designed to run on top of `idea-to-code`. It is not a hard import dependency that prevents the skill text from loading, but full lifecycle behavior requires `idea-to-code` to be installed. If `idea-to-code` is unavailable, the skill instructs agents to continue with equivalent visible planning and traceability, then report the missing lifecycle evidence as a residual risk.
+
+## Validate
+
+Run these commands from the repository root before publishing changes:
+
+```bash
+python skills/design-to-code/scripts/validate_design_to_code.py --root .
+python skills/design-to-code/scripts/validate_design_to_code.py --root . --strict
+python skills/design-to-code/scripts/test_validate_design_to_code.py
+```
+
+These are source-only checks for this skill repository. They do not replace runtime verification inside a downstream frontend project.
+
+## Tooling
+
+Extract interaction seed rows from an HTML prototype:
+
+```bash
+python skills/design-to-code/scripts/extract_html_interactions.py prototype.html --format markdown
+```
+
+Generate an acceptance report from trace and validation JSON:
+
+```bash
+python skills/design-to-code/scripts/generate_acceptance_report.py --trace trace.json --validation validation.json --output report.md
+```
+
+Generate and optionally run the official Playwright dogfood fixture:
+
+```bash
+python skills/design-to-code/scripts/dogfood_playwright_fixture.py --output .idea-to-code/design-to-code-playwright-dogfood --skip-browser
+```
+
+Install Playwright dependencies inside the generated artifact directory, not the repository root:
+
+```bash
+python skills/design-to-code/scripts/dogfood_playwright_fixture.py --output .idea-to-code/design-to-code-playwright-dogfood --install
+```
+
+If Playwright's bundled Chromium download is unavailable or slow, use an installed Chrome, Chromium, or Edge executable as the real-browser fallback:
+
+```bash
+set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
+python skills/design-to-code/scripts/dogfood_playwright_fixture.py --output .idea-to-code/design-to-code-playwright-dogfood
+```
+
+PowerShell equivalent:
+
+```powershell
+$env:PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+python skills/design-to-code/scripts/dogfood_playwright_fixture.py --output .idea-to-code/design-to-code-playwright-dogfood
+```
+
+The script writes `package.json`, Playwright tests, screenshots, `trace.json`, `validation.json`, and `acceptance-report.md` under the output directory. It does not add root npm dependencies.
+
+Preview installation:
+
+```bash
+python scripts/install_skill.py --dry-run
+```
+
+Install or overwrite an existing local copy:
+
+```bash
+python scripts/install_skill.py --force
+```
+
+The installer reports whether `idea-to-code` is installed next to the target `design-to-code` skill.
 
 ## Install
 
@@ -29,3 +107,5 @@ Copy or symlink `skills/design-to-code/` into your Codex skills directory, commo
 ```bash
 $HOME/.codex/skills/design-to-code
 ```
+
+Only `skills/design-to-code/` is the installable runtime skill. Repository-root files such as this README are maintenance scaffolding.
