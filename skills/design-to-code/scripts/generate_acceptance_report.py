@@ -38,9 +38,15 @@ def validation_checks(validation: dict[str, Any]) -> list[dict[str, Any]]:
     return checks if isinstance(checks, list) else []
 
 
+def validation_attempts(validation: dict[str, Any]) -> list[dict[str, Any]]:
+    attempts = validation.get("attempts", [])
+    return attempts if isinstance(attempts, list) else []
+
+
 def generate(title: str, trace: Any, validation: dict[str, Any]) -> str:
     rows = trace_rows(trace)
     checks = validation_checks(validation)
+    attempts = validation_attempts(validation)
     visual_diffs = validation.get("visual_differences", []) if isinstance(validation, dict) else []
     limitations = validation.get("limitations") or validation.get("reason_browser_not_used") or "No limitations recorded."
     validation_type = validation.get("validation_type", "unverified")
@@ -84,6 +90,20 @@ def generate(title: str, trace: Any, validation: dict[str, Any]) -> str:
         ))
     else:
         lines.append("No validation checks supplied.")
+    if attempts:
+        lines.extend(["", "## Browser Attempts", ""])
+        lines.append(table(
+            ["Name", "Status", "Validation Type", "Limitation"],
+            [
+                [
+                    attempt.get("name", ""),
+                    attempt.get("status", ""),
+                    attempt.get("validation_type", ""),
+                    attempt.get("limitation", ""),
+                ]
+                for attempt in attempts
+            ],
+        ))
     lines.extend(["", "## Visual Differences", ""])
     if visual_diffs:
         lines.append(table(

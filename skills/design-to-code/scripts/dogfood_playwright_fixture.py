@@ -307,7 +307,7 @@ def write_fixture(output: Path) -> None:
     write(output / "trace.json", json.dumps(TRACE, indent=2) + "\n")
 
 
-def validation_payload(result: str, validation_type: str, limitation: str, command_output: str) -> dict[str, object]:
+def validation_payload(result: str, validation_type: str, limitation: str, command_output: str, attempts: list[dict[str, str]]) -> dict[str, object]:
     checks = [
         {"id": "TC-C-1", "name": "Dashboard shell renders", "status": result, "evidence": "Playwright dashboard render test; screenshot artifacts/dashboard-desktop.png when browser ran"},
         {"id": "TC-I-1", "name": "Create action feedback", "status": result, "evidence": "Clicked Create new project and asserted role=status text"},
@@ -320,6 +320,7 @@ def validation_payload(result: str, validation_type: str, limitation: str, comma
         "validation_type": validation_type,
         "result": result,
         "limitations": limitation,
+        "attempts": attempts,
         "checks": checks,
         "command_output": command_output[-4000:],
         "visual_differences": [
@@ -368,6 +369,7 @@ def main() -> int:
     write_fixture(output)
 
     command_output = ""
+    attempts: list[dict[str, str]] = []
     limitation = "No limitations recorded."
     result_status = "pass"
     validation_type = "real-product-path"
@@ -375,6 +377,12 @@ def main() -> int:
     if args.install:
         install = run(["npm", "install", "--no-audit", "--no-fund"], cwd=output)
         command_output += "$ npm install --no-audit --no-fund\n" + install.stdout + install.stderr
+        attempts.append({
+            "name": "npm install",
+            "status": "pass" if install.returncode == 0 else "blocked",
+            "validation_type": "source-only",
+            "limitation": "" if install.returncode == 0 else "npm install failed",
+        })
         if install.returncode != 0:
             result_status = "blocked"
             validation_type = "fixture-only"
@@ -385,11 +393,23 @@ def main() -> int:
         result_status = "blocked"
         validation_type = "fixture-only"
         limitation = f"Browser executable not found: {explicit_browser}"
+        attempts.append({
+            "name": "explicit browser",
+            "status": "blocked",
+            "validation_type": "fixture-only",
+            "limitation": limitation,
+        })
 
     if args.skip_browser:
         result_status = "skipped"
         validation_type = "fixture-only"
         limitation = "Browser run skipped by --skip-browser; generated fixture, trace, validation, and report are available."
+        attempts.append({
+            "name": "browser run",
+            "status": "skipped",
+            "validation_type": "fixture-only",
+            "limitation": limitation,
+        })
     elif result_status != "blocked":
         env = os.environ.copy()
         browser = explicit_browser
@@ -397,6 +417,12 @@ def main() -> int:
             env["PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"] = str(browser)
         test = run(["npm", "test"], cwd=output, env=env)
         command_output += "$ npm test\n" + test.stdout + test.stderr
+        attempts.append({
+            "name": "bundled playwright browser" if not browser else "explicit browser",
+            "status": "pass" if test.returncode == 0 else "blocked",
+            "validation_type": "real-product-path" if test.returncode == 0 else "fixture-only",
+            "limitation": "" if test.returncode == 0 else "Initial Playwright browser command failed",
+        })
         if test.returncode != 0 and "Executable doesn't exist" in (test.stdout + test.stderr):
             fallback = browser or (system_browser_candidates()[0] if system_browser_candidates() else None)
             if fallback:
@@ -405,13 +431,19 @@ def main() -> int:
                 command_output += f"$ npm test with PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH={fallback}\n" + retry.stdout + retry.stderr
                 test = retry
                 limitation = f"Bundled Playwright browser was unavailable; used system browser fallback at {fallback}."
+                attempts.append({
+                    "name": "system browser fallback",
+                    "status": "pass" if retry.returncode == 0 else "blocked",
+                    "validation_type": "real-product-path" if retry.returncode == 0 else "fixture-only",
+                    "limitation": limitation,
+                })
         if test.returncode != 0:
             result_status = "blocked"
             validation_type = "fixture-only"
             if limitation == "No limitations recorded.":
                 limitation = "Playwright test command failed; inspect command_output in validation.json."
 
-    write(output / "validation.json", json.dumps(validation_payload(result_status, validation_type, limitation, command_output), indent=2) + "\n")
+    write(output / "validation.json", json.dumps(validation_payload(result_status, validation_type, limitation, command_output, attempts), indent=2) + "\n")
     generate_report(output)
 
     print(f"dogfood output: {output}")

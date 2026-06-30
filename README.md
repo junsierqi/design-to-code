@@ -39,7 +39,7 @@ Run these commands from the repository root before publishing changes:
 ```bash
 python skills/design-to-code/scripts/validate_design_to_code.py --root .
 python skills/design-to-code/scripts/validate_design_to_code.py --root . --strict
-python skills/design-to-code/scripts/test_validate_design_to_code.py
+python skills/design-to-code/scripts/test_validate_design_to_code.py --root .
 ```
 
 These are source-only checks for this skill repository. They do not replace runtime verification inside a downstream frontend project.

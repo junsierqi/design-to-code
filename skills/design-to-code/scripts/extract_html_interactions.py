@@ -243,6 +243,33 @@ def public_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return clean
 
 
+def merge_duplicate_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        key = (str(row.get("selector", "")), str(row.get("trigger", "")))
+        target = by_key.get(key)
+        if not target:
+            target = dict(row)
+            by_key[key] = target
+            merged.append(target)
+            continue
+        for field in ("source_kind", "handler"):
+            values = [part.strip() for part in str(target.get(field, "")).split(",") if part.strip()]
+            incoming = str(row.get(field, "")).strip()
+            if incoming and incoming not in values:
+                values.append(incoming)
+            target[field] = ", ".join(values)
+        if row.get("behavior_status") == "detected":
+            target["behavior_status"] = "detected"
+            target["expected_behavior"] = row.get("expected_behavior", target.get("expected_behavior", ""))
+        if not target.get("label") and row.get("label"):
+            target["label"] = row["label"]
+    for index, row in enumerate(merged, start=1):
+        row["id"] = f"I-{index}"
+    return merged
+
+
 def markdown(rows: list[dict[str, Any]]) -> str:
     lines = [
         "| ID | Element | Selector | Trigger | Handler | Expected Behavior |",
@@ -264,7 +291,7 @@ def extract(path: Path) -> list[dict[str, Any]]:
     parser.attach_script_handlers()
     rows = public_rows(parser.rows)
     rows.extend(framework_event_rows(source, len(rows)))
-    return rows
+    return merge_duplicate_rows(rows)
 
 
 def main() -> int:

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import argparse
 import shutil
 import subprocess
 import sys
@@ -14,7 +15,20 @@ from pathlib import Path
 
 
 SCRIPT_REPO_ROOT = Path(__file__).resolve().parents[3]
-REPO_ROOT = Path.cwd().resolve() if (Path.cwd() / "skills" / "design-to-code" / "SKILL.md").exists() else SCRIPT_REPO_ROOT
+
+
+def selected_repo_root() -> Path:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--root", help="Repository root to validate")
+    args, remaining = parser.parse_known_args()
+    sys.argv = [sys.argv[0], *remaining]
+    if args.root:
+        return Path(args.root).resolve()
+    cwd = Path.cwd().resolve()
+    return cwd if (cwd / "skills" / "design-to-code" / "SKILL.md").exists() else SCRIPT_REPO_ROOT
+
+
+REPO_ROOT = selected_repo_root()
 VALIDATOR_PATH = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "validate_design_to_code.py"
 DOGFOOD_PATH = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "dogfood_playwright_fixture.py"
 
@@ -166,11 +180,13 @@ class ValidateDesignToCodeTests(unittest.TestCase):
             )
             payload = json.loads(result.stdout)
 
-        by_kind = {(row["source_kind"], row["selector"]) for row in payload["interactions"]}
-        self.assertIn(("jsx", '[data-testid="jsx-save"]'), by_kind)
-        self.assertIn(("vue", '[data-testid="vue-save"]'), by_kind)
-        self.assertIn(("vue", '[data-testid="vue-form"]'), by_kind)
-        self.assertIn(("svelte", '[data-testid="svelte-save"]'), by_kind)
+        by_selector = {row["selector"]: row for row in payload["interactions"]}
+        self.assertIn("jsx", by_selector['[data-testid="jsx-save"]']["source_kind"])
+        self.assertIn("vue", by_selector['[data-testid="vue-save"]']["source_kind"])
+        self.assertIn("vue", by_selector['[data-testid="vue-form"]']["source_kind"])
+        self.assertIn("svelte", by_selector['[data-testid="svelte-save"]']["source_kind"])
+        self.assertEqual(4, len(payload["interactions"]))
+        self.assertEqual("detected", by_selector['[data-testid="vue-save"]']["behavior_status"])
 
     def test_acceptance_report_generator_outputs_required_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -199,6 +215,7 @@ class ValidateDesignToCodeTests(unittest.TestCase):
                     "validation_type": "manual-inspection",
                     "result": "pass-with-limitations",
                     "checks": [{"id": "C-1", "name": "Header", "status": "pass", "evidence": "visible"}],
+                    "attempts": [{"name": "system browser fallback", "status": "pass", "validation_type": "real-product-path", "limitation": "used Chrome"}],
                     "visual_differences": [{"area": "gap", "design": "16", "implementation": "18", "reason": "token", "accepted": True}],
                 }),
                 encoding="utf-8",
@@ -217,6 +234,8 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("src/Header.tsx:10", text)
         self.assertIn("screenshot header.png", text)
         self.assertIn("## Validation Checks", text)
+        self.assertIn("## Browser Attempts", text)
+        self.assertIn("system browser fallback", text)
         self.assertIn("## Visual Differences", text)
         self.assertIn("pass-with-limitations", text)
 
@@ -369,6 +388,8 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual("blocked", validation["result"])
         self.assertEqual("fixture-only", validation["validation_type"])
         self.assertIn("Browser executable not found", validation["limitations"])
+        self.assertEqual("explicit browser", validation["attempts"][0]["name"])
+        self.assertEqual("blocked", validation["attempts"][0]["status"])
         self.assertIn("acceptance-report.md", generated_names)
 
     def test_install_skill_dry_run_reports_copy_action(self) -> None:
@@ -384,6 +405,17 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("DRY RUN copy", result.stdout)
         self.assertIn("idea-to-code", result.stdout)
         self.assertIn("skills", result.stdout)
+
+    def test_regression_script_accepts_explicit_root(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "test_validate_design_to_code.py"
+        result = subprocess.run(
+            [sys.executable, str(script), "--root", str(REPO_ROOT), "-k", "test_current_repository_contract_passes"],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        self.assertIn("OK", result.stderr)
 
     def test_install_skill_refuses_existing_target_without_force(self) -> None:
         script = REPO_ROOT / "scripts" / "install_skill.py"
