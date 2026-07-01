@@ -94,7 +94,8 @@ python skills/design-to-code/scripts/capture_design_snapshot.py ./designs/source
 
 Compare screenshot artifacts with a byte-diff threshold. PNG files work with the
 standard-library fallback; install Pillow only when comparing JPEG, WebP, or
-other raster formats:
+other raster formats. Use `--check-deps` to preflight optional image support and
+`--require-pillow` when non-PNG comparison must fail early without Pillow:
 
 ```bash
 python skills/design-to-code/scripts/compare_screenshots.py --expected baseline.png --actual actual.png --threshold 0.01 --json

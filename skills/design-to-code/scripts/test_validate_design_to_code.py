@@ -1045,6 +1045,7 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual(0, payload["different_bytes"])
         self.assertIn(payload["expected"]["loader"], {"pillow", "stdlib-png"})
         self.assertIn(payload["actual"]["loader"], {"pillow", "stdlib-png"})
+        self.assertIn("pillow_available", payload["dependencies"])
 
     def test_compare_screenshots_fails_threshold_and_dimension_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1104,6 +1105,49 @@ class ValidateDesignToCodeTests(unittest.TestCase):
                 )
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn("Install Pillow", result.stderr or result.stdout)
+
+    def test_compare_screenshots_reports_dependency_status(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "compare_screenshots.py"
+        result = subprocess.run(
+            [sys.executable, str(script), "--check-deps", "--json"],
+            text=True,
+            capture_output=True,
+        )
+        payload = json.loads(result.stdout)
+
+        self.assertIn("pillow_available", payload["dependencies"])
+        self.assertEqual(payload["dependencies"]["pillow_available"], payload["ok"])
+        self.assertEqual(0 if payload["ok"] else 1, result.returncode)
+
+    def test_compare_screenshots_require_pillow_reflects_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            expected = tmp_path / "expected.png"
+            actual = tmp_path / "actual.png"
+            write_test_png(expected, 2, 2, (255, 0, 0))
+            write_test_png(actual, 2, 2, (255, 0, 0))
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "compare_screenshots.py"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(script),
+                    "--expected",
+                    str(expected),
+                    "--actual",
+                    str(actual),
+                    "--require-pillow",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+            )
+
+        if importlib.util.find_spec("PIL") is not None:
+            self.assertEqual(0, result.returncode)
+            self.assertTrue(json.loads(result.stdout)["dependencies"]["pillow_available"])
+        else:
+            self.assertEqual(1, result.returncode)
+            self.assertIn("Install Pillow", result.stdout)
 
     def test_ui_smoke_check_reports_accessibility_and_i18n_findings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

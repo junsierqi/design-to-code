@@ -19,6 +19,14 @@ except ImportError:  # pragma: no cover - exercised through fallback behavior.
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
+def dependency_status() -> dict[str, Any]:
+    return {
+        "pillow_available": Image is not None,
+        "pillow_required_for": ["jpeg", "jpg", "webp", "gif", "non-png raster formats"],
+        "install_hint": "Install Pillow to compare JPEG, WebP, and other raster formats.",
+    }
+
+
 def paeth(left: int, up: int, upper_left: int) -> int:
     estimate = left + up - upper_left
     distances = (abs(estimate - left), abs(estimate - up), abs(estimate - upper_left))
@@ -143,17 +151,38 @@ def compare(expected: Path, actual: Path, threshold: float | None = None) -> dic
         "diff_ratio": diff_ratio,
         "threshold": threshold,
         "ok": passed,
+        "dependencies": dependency_status(),
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--expected", required=True, help="Expected/baseline image")
-    parser.add_argument("--actual", required=True, help="Actual image")
+    parser.add_argument("--expected", help="Expected/baseline image")
+    parser.add_argument("--actual", help="Actual image")
     parser.add_argument("--threshold", type=float, default=None, help="Maximum allowed byte diff ratio")
+    parser.add_argument("--check-deps", action="store_true", help="Report optional image dependency availability and exit")
+    parser.add_argument("--require-pillow", action="store_true", help="Fail early when Pillow is unavailable")
     parser.add_argument("--json", action="store_true", help="Print machine-readable output")
     args = parser.parse_args()
 
+    deps = dependency_status()
+    if args.check_deps:
+        result = {"ok": deps["pillow_available"], "dependencies": deps}
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"Pillow: {'available' if deps['pillow_available'] else 'missing'}")
+            if not deps["pillow_available"]:
+                print(deps["install_hint"])
+        return 0 if deps["pillow_available"] else 1
+    if args.require_pillow and not deps["pillow_available"]:
+        message = deps["install_hint"]
+        if args.json:
+            print(json.dumps({"ok": False, "error": message, "dependencies": deps}, indent=2))
+            return 1
+        raise SystemExit(message)
+    if not args.expected or not args.actual:
+        parser.error("--expected and --actual are required unless --check-deps is used")
     try:
         result = compare(Path(args.expected), Path(args.actual), threshold=args.threshold)
     except (OSError, ValueError, zlib.error) as error:
