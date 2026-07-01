@@ -307,6 +307,10 @@ def write_fixture(output: Path) -> None:
     write(output / "trace.json", json.dumps(TRACE, indent=2) + "\n")
 
 
+def playwright_dependency_installed(output: Path) -> bool:
+    return (output / "node_modules" / "@playwright" / "test").exists()
+
+
 def validation_payload(result: str, validation_type: str, limitation: str, command_output: str, attempts: list[dict[str, str]]) -> dict[str, object]:
     checks = [
         {"id": "TC-C-1", "name": "Dashboard shell renders", "status": result, "evidence": "Playwright dashboard render test; screenshot artifacts/dashboard-desktop.png when browser ran"},
@@ -387,6 +391,16 @@ def main() -> int:
             result_status = "blocked"
             validation_type = "fixture-only"
             limitation = "npm install failed; generated fixture files are available but browser validation did not run."
+    elif not args.skip_browser and not playwright_dependency_installed(output):
+        result_status = "blocked"
+        validation_type = "fixture-only"
+        limitation = "Playwright dependencies are not installed in the generated fixture directory; rerun with --install before browser validation."
+        attempts.append({
+            "name": "dependency check",
+            "status": "blocked",
+            "validation_type": "fixture-only",
+            "limitation": limitation,
+        })
 
     explicit_browser = Path(args.browser_executable).resolve() if args.browser_executable else None
     if explicit_browser and not explicit_browser.exists():
@@ -454,7 +468,7 @@ def main() -> int:
     if args.skip_browser:
         print("next: run with --install to install Playwright dependencies, then omit --skip-browser for real browser validation")
     elif result_status == "blocked":
-        print("next: run npm install in the output directory or set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH / --browser-executable")
+        print("next: rerun with --install, or install dependencies in the output directory and set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH / --browser-executable when needed")
     return 0 if result_status in {"pass", "skipped"} else 2
 
 

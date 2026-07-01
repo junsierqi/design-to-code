@@ -58,13 +58,25 @@ Generate an acceptance report from trace and validation JSON:
 python skills/design-to-code/scripts/generate_acceptance_report.py --trace trace.json --validation validation.json --output report.md
 ```
 
+Use strict mode when the report is acting as a gate:
+
+```bash
+python skills/design-to-code/scripts/generate_acceptance_report.py --trace trace.json --validation validation.json --output report.md --strict
+```
+
+Validate referenced artifacts as well:
+
+```bash
+python skills/design-to-code/scripts/generate_acceptance_report.py --trace trace.json --validation validation.json --output report.md --strict --artifact-root artifacts
+```
+
 Generate and optionally run the official Playwright dogfood fixture:
 
 ```bash
 python skills/design-to-code/scripts/dogfood_playwright_fixture.py --output .idea-to-code/design-to-code-playwright-dogfood --skip-browser
 ```
 
-Install Playwright dependencies inside the generated artifact directory, not the repository root:
+Install Playwright dependencies inside the generated artifact directory, not the repository root. Browser validation is blocked until these fixture-local dependencies exist:
 
 ```bash
 python skills/design-to-code/scripts/dogfood_playwright_fixture.py --output .idea-to-code/design-to-code-playwright-dogfood --install
@@ -96,6 +108,12 @@ Install or overwrite an existing local copy:
 
 ```bash
 python scripts/install_skill.py --force
+```
+
+Verify source/installed file hash parity:
+
+```bash
+python scripts/install_skill.py --verify
 ```
 
 The installer reports whether `idea-to-code` is installed next to the target `design-to-code` skill.

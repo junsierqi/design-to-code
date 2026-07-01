@@ -38,17 +38,26 @@ class InteractionParser(HTMLParser):
         self._scripts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.lower()
         attr = {name.lower(): value or "" for name, value in attrs}
-        item = {"tag": tag.lower(), "attrs": attr, "text": []}
+        nth = self._next_child_index(tag)
+        base_selector = selector_for(tag, attr)
+        selector = stable_selector_for(tag, attr, base_selector, nth, self._stack)
+        item = {
+            "tag": tag,
+            "attrs": attr,
+            "text": [],
+            "selector_segment": selector_segment(tag, attr, nth),
+        }
         self._stack.append(item)
 
-        is_interactive = tag.lower() in INTERACTIVE_TAGS or attr.get("role") in {"button", "link", "tab", "menuitem"}
+        is_interactive = tag in INTERACTIVE_TAGS or attr.get("role") in {"button", "link", "tab", "menuitem"}
         has_event = any(name in attr for name in EVENT_ATTRS)
         is_editable = "contenteditable" in attr and attr.get("contenteditable", "true").lower() != "false"
         has_action_hint = any(name in attr for name in ("data-action", "data-click", "aria-expanded"))
         has_keyboard_hint = attr.get("tabindex", "") not in {"", "-1"}
         if is_interactive or has_event or is_editable or has_action_hint or has_keyboard_hint:
-            self.rows.append(self._row(tag.lower(), attr, has_event, is_editable))
+            self.rows.append(self._row(tag, attr, has_event, is_editable, selector, base_selector))
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
@@ -76,9 +85,23 @@ class InteractionParser(HTMLParser):
                 row["expected_behavior"] = expected_behavior(row)
                 return
 
-    def _row(self, tag: str, attrs: dict[str, str], has_event: bool, is_editable: bool) -> dict[str, Any]:
+    def _next_child_index(self, tag: str) -> int:
+        if not self._stack:
+            return 1
+        child_counts = self._stack[-1].setdefault("child_counts", {})
+        child_counts[tag] = int(child_counts.get(tag, 0)) + 1
+        return child_counts[tag]
+
+    def _row(
+        self,
+        tag: str,
+        attrs: dict[str, str],
+        has_event: bool,
+        is_editable: bool,
+        selector: str,
+        base_selector: str,
+    ) -> dict[str, Any]:
         row_id = f"I-{len(self.rows) + 1}"
-        selector = selector_for(tag, attrs)
         trigger = trigger_for(tag, attrs, has_event, is_editable)
         row = {
             "id": row_id,
@@ -93,6 +116,7 @@ class InteractionParser(HTMLParser):
             "expected_behavior": "",
             "_tag": tag,
             "_attrs": attrs,
+            "_merge_key": f"html:{row_id}" if weak_selector(tag, base_selector) else "",
         }
         row["expected_behavior"] = expected_behavior(row)
         return row
@@ -140,6 +164,38 @@ def selector_for(tag: str, attrs: dict[str, str]) -> str:
     if classes:
         return f"{tag}.{classes[0]}"
     return tag
+
+
+def weak_selector(tag: str, selector: str) -> bool:
+    return selector == tag or selector.startswith(f"{tag}.")
+
+
+def selector_segment(tag: str, attrs: dict[str, str], nth: int) -> str:
+    base = selector_for(tag, attrs)
+    if attrs.get("id"):
+        return base
+    if base.startswith("["):
+        return f"{tag}{base}:nth-of-type({nth})"
+    if base.startswith(f"{tag}["):
+        return f"{base}:nth-of-type({nth})"
+    if base.startswith("a["):
+        return f"{base}:nth-of-type({nth})"
+    if base.startswith(f"{tag}."):
+        return f"{base}:nth-of-type({nth})"
+    return f"{tag}:nth-of-type({nth})"
+
+
+def stable_selector_for(
+    tag: str,
+    attrs: dict[str, str],
+    base_selector: str,
+    nth: int,
+    stack: list[dict[str, Any]],
+) -> str:
+    if attrs.get("id") or not weak_selector(tag, base_selector):
+        return base_selector
+    parent_segments = [str(item["selector_segment"]) for item in stack if item.get("selector_segment")]
+    return " > ".join([*parent_segments, selector_segment(tag, attrs, nth)])
 
 
 def first_handler(attrs: dict[str, str]) -> str:
@@ -247,7 +303,7 @@ def merge_duplicate_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     merged: list[dict[str, Any]] = []
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     for row in rows:
-        key = (str(row.get("selector", "")), str(row.get("trigger", "")))
+        key = (str(row.get("_merge_key") or row.get("selector", "")), str(row.get("trigger", "")))
         target = by_key.get(key)
         if not target:
             target = dict(row)
@@ -289,9 +345,9 @@ def extract(path: Path) -> list[dict[str, Any]]:
     parser = InteractionParser()
     parser.feed(source)
     parser.attach_script_handlers()
-    rows = public_rows(parser.rows)
+    rows = parser.rows
     rows.extend(framework_event_rows(source, len(rows)))
-    return merge_duplicate_rows(rows)
+    return public_rows(merge_duplicate_rows(rows))
 
 
 def main() -> int:

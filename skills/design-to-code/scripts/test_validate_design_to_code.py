@@ -159,6 +159,62 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("I-1", markdown_result.stdout)
         self.assertIn("Expected Behavior", markdown_result.stdout)
 
+    def test_html_interaction_extractor_preserves_distinct_fallback_elements(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            html = Path(tmp) / "prototype.html"
+            html.write_text(
+                """
+                <main>
+                  <button>Save</button>
+                  <button>Cancel</button>
+                </main>
+                """,
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "extract_html_interactions.py"
+            result = subprocess.run(
+                [sys.executable, str(script), str(html)],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            payload = json.loads(result.stdout)
+
+        labels = [row["label"] for row in payload["interactions"]]
+        selectors = [row["selector"] for row in payload["interactions"]]
+        self.assertEqual(["Save", "Cancel"], labels)
+        self.assertEqual(["I-1", "I-2"], [row["id"] for row in payload["interactions"]])
+        self.assertEqual(2, len(set(selectors)))
+        self.assertTrue(all("button" in selector for selector in selectors))
+        self.assertTrue(all(":nth-of-type(" in selector for selector in selectors))
+
+    def test_html_interaction_extractor_preserves_distinct_class_fallback_elements(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            html = Path(tmp) / "prototype.html"
+            html.write_text(
+                """
+                <main>
+                  <button class="secondary">Save draft</button>
+                  <button class="secondary">Discard draft</button>
+                </main>
+                """,
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "extract_html_interactions.py"
+            result = subprocess.run(
+                [sys.executable, str(script), str(html)],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            payload = json.loads(result.stdout)
+
+        labels = [row["label"] for row in payload["interactions"]]
+        selectors = [row["selector"] for row in payload["interactions"]]
+        self.assertEqual(["Save draft", "Discard draft"], labels)
+        self.assertEqual(2, len(set(selectors)))
+        self.assertTrue(all("button.secondary" in selector for selector in selectors))
+
     def test_html_interaction_extractor_detects_framework_bindings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "prototype.html"
@@ -257,6 +313,238 @@ class ValidateDesignToCodeTests(unittest.TestCase):
             text = report.read_text(encoding="utf-8")
 
         self.assertIn("Result: pass", text)
+
+    def test_acceptance_report_strict_passes_complete_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            trace = tmp_path / "trace.json"
+            validation = tmp_path / "validation.json"
+            report = tmp_path / "report.md"
+            trace.write_text(
+                json.dumps({
+                    "rows": [
+                        {
+                            "id": "I-1",
+                            "type": "interaction",
+                            "source_evidence": "#save",
+                            "expected_ui_behavior": "Save feedback appears",
+                            "implementation": "src/App.tsx:10",
+                            "verification": "test save feedback",
+                            "status": "pass",
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            validation.write_text(
+                json.dumps({
+                    "validation_type": "source-only",
+                    "result": "pass",
+                    "checks": [{"id": "I-1", "name": "Save", "status": "pass", "evidence": "asserted"}],
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "generate_acceptance_report.py"
+            result = subprocess.run(
+                [sys.executable, str(script), "--trace", str(trace), "--validation", str(validation), "--output", str(report), "--strict"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            report_exists = report.exists()
+
+        self.assertEqual("", result.stderr)
+        self.assertTrue(report_exists)
+
+    def test_acceptance_report_strict_fails_incomplete_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            trace = tmp_path / "trace.json"
+            validation = tmp_path / "validation.json"
+            report = tmp_path / "report.md"
+            trace.write_text('{"rows":[]}', encoding="utf-8")
+            validation.write_text(
+                json.dumps({
+                    "validation_type": "source-only",
+                    "result": "progress",
+                    "checks": [{"id": "I-1", "name": "Save", "status": "fail", "evidence": "missing"}],
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "generate_acceptance_report.py"
+            result = subprocess.run(
+                [sys.executable, str(script), "--trace", str(trace), "--validation", str(validation), "--output", str(report), "--strict"],
+                text=True,
+                capture_output=True,
+            )
+            report_exists = report.exists()
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("strict: no UI trace rows supplied", result.stderr)
+        self.assertIn("strict: validation result is not passing: progress", result.stderr)
+        self.assertIn("strict: validation check is not passing: I-1 status=fail", result.stderr)
+        self.assertTrue(report_exists)
+
+    def test_acceptance_report_strict_fails_invalid_trace_schema_and_missing_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            trace = tmp_path / "trace.json"
+            validation = tmp_path / "validation.json"
+            report = tmp_path / "report.md"
+            trace.write_text(
+                json.dumps({
+                    "rows": [
+                        {
+                            "id": "I-1",
+                            "type": "interaction",
+                            "source_evidence": "#save",
+                            "expected_ui_behavior": "Save feedback appears",
+                            "implementation": "src/App.tsx:10",
+                            "verification": "test save feedback",
+                            "status": "pass",
+                        },
+                        {
+                            "id": "bad-id",
+                            "type": "component",
+                            "source_evidence": "header frame",
+                            "expected_ui_behavior": "Header visible",
+                            "status": "pass",
+                        },
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            validation.write_text(
+                json.dumps({
+                    "validation_type": "source-only",
+                    "result": "pass",
+                    "checks": [{"id": "C-99", "name": "Unrelated", "status": "pass", "evidence": "asserted"}],
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "generate_acceptance_report.py"
+            result = subprocess.run(
+                [sys.executable, str(script), "--trace", str(trace), "--validation", str(validation), "--output", str(report), "--strict"],
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("strict: trace row 2 has invalid id: bad-id", result.stderr)
+        self.assertIn("strict: trace row bad-id missing implementation", result.stderr)
+        self.assertIn("strict: trace row bad-id missing verification", result.stderr)
+        self.assertIn("strict: trace row has no validation check coverage: I-1", result.stderr)
+
+    def test_acceptance_report_strict_validates_artifacts_when_root_supplied(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifacts = tmp_path / "artifacts"
+            artifacts.mkdir()
+            screenshot = artifacts / "save.png"
+            screenshot.write_bytes(b"not empty")
+            trace = tmp_path / "trace.json"
+            validation = tmp_path / "validation.json"
+            report = tmp_path / "report.md"
+            trace.write_text(
+                json.dumps({
+                    "rows": [
+                        {
+                            "id": "I-1",
+                            "type": "interaction",
+                            "source_evidence": "#save",
+                            "expected_ui_behavior": "Save feedback appears",
+                            "implementation": "src/App.tsx:10",
+                            "verification": "save.png",
+                            "status": "pass",
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            validation.write_text(
+                json.dumps({
+                    "validation_type": "source-only",
+                    "result": "pass",
+                    "checks": [{"id": "I-1", "name": "Save", "status": "pass", "evidence": "save.png"}],
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "generate_acceptance_report.py"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(script),
+                    "--trace",
+                    str(trace),
+                    "--validation",
+                    str(validation),
+                    "--output",
+                    str(report),
+                    "--strict",
+                    "--artifact-root",
+                    str(artifacts),
+                ],
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_acceptance_report_strict_fails_missing_or_empty_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifacts = tmp_path / "artifacts"
+            artifacts.mkdir()
+            (artifacts / "empty.png").write_bytes(b"")
+            trace = tmp_path / "trace.json"
+            validation = tmp_path / "validation.json"
+            report = tmp_path / "report.md"
+            trace.write_text(
+                json.dumps({
+                    "rows": [
+                        {
+                            "id": "I-1",
+                            "type": "interaction",
+                            "source_evidence": "#save",
+                            "expected_ui_behavior": "Save feedback appears",
+                            "implementation": "src/App.tsx:10",
+                            "verification": "missing.png",
+                            "status": "pass",
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            validation.write_text(
+                json.dumps({
+                    "validation_type": "source-only",
+                    "result": "pass",
+                    "checks": [{"id": "I-1", "name": "Save", "status": "pass", "evidence": "empty.png"}],
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "generate_acceptance_report.py"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(script),
+                    "--trace",
+                    str(trace),
+                    "--validation",
+                    str(validation),
+                    "--output",
+                    str(report),
+                    "--strict",
+                    "--artifact-root",
+                    str(artifacts),
+                ],
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("strict: artifact does not exist for I-1: missing.png", result.stderr)
+        self.assertIn("strict: artifact is empty for I-1: empty.png", result.stderr)
 
     def test_dogfood_tooling_surfaces_failed_and_deferred_ui_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -365,6 +653,24 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("## UI Trace", report)
         self.assertIn("dogfood output:", result.stdout)
 
+    def test_playwright_dogfood_fixture_blocks_browser_run_without_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "dogfood"
+            result = subprocess.run(
+                [sys.executable, str(DOGFOOD_PATH), "--output", str(output)],
+                text=True,
+                capture_output=True,
+            )
+            validation = json.loads((output / "validation.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("blocked", validation["result"])
+        self.assertEqual("fixture-only", validation["validation_type"])
+        self.assertIn("Playwright dependencies are not installed", validation["limitations"])
+        self.assertEqual("dependency check", validation["attempts"][0]["name"])
+        self.assertEqual("blocked", validation["attempts"][0]["status"])
+        self.assertIn("--install", result.stdout)
+
     def test_playwright_dogfood_fixture_reports_invalid_browser_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "dogfood"
@@ -388,8 +694,9 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual("blocked", validation["result"])
         self.assertEqual("fixture-only", validation["validation_type"])
         self.assertIn("Browser executable not found", validation["limitations"])
-        self.assertEqual("explicit browser", validation["attempts"][0]["name"])
-        self.assertEqual("blocked", validation["attempts"][0]["status"])
+        self.assertEqual("dependency check", validation["attempts"][0]["name"])
+        self.assertEqual("explicit browser", validation["attempts"][1]["name"])
+        self.assertEqual("blocked", validation["attempts"][1]["status"])
         self.assertIn("acceptance-report.md", generated_names)
 
     def test_install_skill_dry_run_reports_copy_action(self) -> None:
@@ -450,6 +757,47 @@ class ValidateDesignToCodeTests(unittest.TestCase):
             self.assertFalse(local_file.exists())
 
         self.assertIn("copy", result.stdout)
+
+    def test_install_skill_verify_reports_hash_parity(self) -> None:
+        script = REPO_ROOT / "scripts" / "install_skill.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "design-to-code"
+            subprocess.run(
+                [sys.executable, str(script), "--target", str(target), "--force"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            result = subprocess.run(
+                [sys.executable, str(script), "--target", str(target), "--verify"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        self.assertIn("parity ok:", result.stdout)
+
+    def test_install_skill_verify_reports_hash_mismatch(self) -> None:
+        script = REPO_ROOT / "scripts" / "install_skill.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "design-to-code"
+            subprocess.run(
+                [sys.executable, str(script), "--target", str(target), "--force"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            skill = target / "SKILL.md"
+            skill.write_text(skill.read_text(encoding="utf-8") + "\nmodified\n", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(script), "--target", str(target), "--verify"],
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("parity FAIL", result.stdout)
+        self.assertIn("hash mismatch: SKILL.md", result.stdout)
 
 
 if __name__ == "__main__":
