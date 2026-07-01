@@ -52,6 +52,12 @@ Extract interaction seed rows from an HTML prototype:
 python skills/design-to-code/scripts/extract_html_interactions.py prototype.html --format markdown
 ```
 
+Validate UI trace rows before implementation or closeout:
+
+```bash
+python skills/design-to-code/scripts/validate_trace.py trace.json --validation validation.json --artifact-root artifacts
+```
+
 Generate an acceptance report from trace and validation JSON:
 
 ```bash

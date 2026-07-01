@@ -21,6 +21,7 @@ REQUIRED_FILES = [
     "skills/design-to-code/references/acceptance-report.md",
     "skills/design-to-code/references/playwright-patterns.md",
     "skills/design-to-code/scripts/extract_html_interactions.py",
+    "skills/design-to-code/scripts/validate_trace.py",
     "skills/design-to-code/scripts/generate_acceptance_report.py",
     "skills/design-to-code/scripts/dogfood_playwright_fixture.py",
     "skills/design-to-code/scripts/validate_design_to_code.py",
@@ -109,6 +110,7 @@ README_REQUIRED_PHRASES = [
     "idea-to-code",
     "validate_design_to_code.py",
     "extract_html_interactions.py",
+    "validate_trace.py",
     "generate_acceptance_report.py",
     "dogfood_playwright_fixture.py",
     "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH",
@@ -136,6 +138,7 @@ AGENT_REQUIRED_PHRASES = [
 
 CLI_SCRIPT_PATHS = [
     "skills/design-to-code/scripts/extract_html_interactions.py",
+    "skills/design-to-code/scripts/validate_trace.py",
     "skills/design-to-code/scripts/generate_acceptance_report.py",
     "skills/design-to-code/scripts/dogfood_playwright_fixture.py",
     "scripts/install_skill.py",

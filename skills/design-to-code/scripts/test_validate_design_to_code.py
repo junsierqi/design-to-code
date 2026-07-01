@@ -546,6 +546,137 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("strict: artifact does not exist for I-1: missing.png", result.stderr)
         self.assertIn("strict: artifact is empty for I-1: empty.png", result.stderr)
 
+    def test_validate_trace_cli_passes_complete_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifacts = tmp_path / "artifacts"
+            artifacts.mkdir()
+            (artifacts / "save.png").write_bytes(b"image")
+            trace = tmp_path / "trace.json"
+            validation = tmp_path / "validation.json"
+            trace.write_text(
+                json.dumps({
+                    "rows": [
+                        {
+                            "id": "I-1",
+                            "type": "interaction",
+                            "source_evidence": "#save",
+                            "expected_ui_behavior": "Save feedback appears",
+                            "implementation": "src/App.tsx:10",
+                            "verification": "save.png",
+                            "status": "pass",
+                            "behavior_status": "detected",
+                            "handler": "onclick=save",
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            validation.write_text(
+                json.dumps({"checks": [{"id": "TC-I-1", "covers": "I-1", "status": "pass", "evidence": "save.png"}]}),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "validate_trace.py"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(script),
+                    str(trace),
+                    "--validation",
+                    str(validation),
+                    "--artifact-root",
+                    str(artifacts),
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            payload = json.loads(result.stdout)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual([], payload["problems"])
+
+    def test_validate_trace_cli_fails_invalid_rows_and_missing_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            trace = tmp_path / "trace.json"
+            validation = tmp_path / "validation.json"
+            trace.write_text(
+                json.dumps({
+                    "rows": [
+                        {
+                            "id": "bad-id",
+                            "type": "interaction",
+                            "source_evidence": "#export",
+                            "expected_ui_behavior": "Export runs",
+                            "implementation": "",
+                            "verification": "",
+                            "status": "pass",
+                            "behavior_status": "candidate-missing-handler",
+                        },
+                        {
+                            "id": "S-1",
+                            "type": "state",
+                            "source_evidence": "error view",
+                            "expected_ui_behavior": "Error renders",
+                            "implementation": "src/App.tsx",
+                            "verification": "manual",
+                            "status": "deferred",
+                        },
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            validation.write_text(json.dumps({"checks": [{"id": "TC-X", "covers": "C-9", "status": "pass"}]}), encoding="utf-8")
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "validate_trace.py"
+            result = subprocess.run(
+                [sys.executable, str(script), str(trace), "--validation", str(validation)],
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("trace row 1 has invalid id: bad-id", result.stdout)
+        self.assertIn("trace row bad-id missing implementation", result.stdout)
+        self.assertIn("interaction row bad-id has no detected behavior or deferred reason", result.stdout)
+        self.assertIn("trace row S-1 is deferred/blocked without a reason or owner", result.stdout)
+        self.assertIn("trace row has no validation check coverage: S-1", result.stdout)
+
+    def test_validate_trace_cli_checks_artifact_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifacts = tmp_path / "artifacts"
+            artifacts.mkdir()
+            (artifacts / "empty.png").write_bytes(b"")
+            trace = tmp_path / "trace.json"
+            trace.write_text(
+                json.dumps({
+                    "rows": [
+                        {
+                            "id": "C-1",
+                            "type": "component",
+                            "source_evidence": "frame",
+                            "expected_ui_behavior": "Header visible",
+                            "implementation": "src/Header.tsx",
+                            "verification": "missing.png empty.png",
+                            "status": "pass",
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "validate_trace.py"
+            result = subprocess.run(
+                [sys.executable, str(script), str(trace), "--artifact-root", str(artifacts)],
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("artifact does not exist for C-1: missing.png", result.stdout)
+        self.assertIn("artifact is empty for C-1: empty.png", result.stdout)
+
     def test_dogfood_tooling_surfaces_failed_and_deferred_ui_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
