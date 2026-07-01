@@ -100,6 +100,11 @@ Run the local end-to-end tooling pipeline for an HTML source:
 python skills/design-to-code/scripts/design_to_code_pipeline.py --source skills/design-to-code/examples/pipeline-source.html --output .idea-to-code/design-to-code-pipeline-example --json
 ```
 
+Add `--run-browser` to run the generated Playwright spec when a local
+Playwright binary is already installed, or pass `--browser-command` to point at
+one explicitly. When browser dependencies are missing, the pipeline records a
+`browser_run` step as `blocked` instead of claiming browser validation passed.
+
 Generate an acceptance report from trace and validation JSON:
 
 ```bash

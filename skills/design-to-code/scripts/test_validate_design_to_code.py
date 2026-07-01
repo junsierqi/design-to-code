@@ -1099,6 +1099,45 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("## UI Trace", report)
         self.assertIn("Covers: I-1", spec)
 
+    def test_design_to_code_pipeline_can_run_browser_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            output = tmp_path / "pipeline"
+            fake_runner = tmp_path / "fake_playwright.py"
+            fake_runner.write_text(
+                "import pathlib, sys\n"
+                "pathlib.Path('browser-run-marker.txt').write_text(' '.join(sys.argv[1:]), encoding='utf-8')\n"
+                "raise SystemExit(0)\n",
+                encoding="utf-8",
+            )
+            source = REPO_ROOT / "skills" / "design-to-code" / "examples" / "pipeline-source.html"
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "design_to_code_pipeline.py"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(script),
+                    "--source",
+                    str(source),
+                    "--output",
+                    str(output),
+                    "--run-browser",
+                    "--browser-command",
+                    f"{sys.executable} {fake_runner}",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            payload = json.loads(result.stdout)
+            browser_run = json.loads((output / "browser-run.json").read_text(encoding="utf-8"))
+            marker_exists = (output / "browser-run-marker.txt").exists()
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual("pass", browser_run["status"])
+        self.assertIn({"name": "browser_run", "status": "pass", "artifact": "browser-run.json"}, payload["steps"])
+        self.assertTrue(marker_exists)
+
     def test_dogfood_tooling_surfaces_failed_and_deferred_ui_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

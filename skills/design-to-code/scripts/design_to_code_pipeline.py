@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shlex
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -70,7 +73,47 @@ def build_validation(trace: dict[str, Any], smoke: dict[str, Any]) -> dict[str, 
     }
 
 
-def run_pipeline(source: Path, output: Path) -> dict[str, Any]:
+def local_playwright_command(output: Path, browser_command: str | None = None) -> list[str] | None:
+    if browser_command:
+        return shlex.split(browser_command, posix=os.name != "nt")
+    suffixes = [".cmd", ".exe", ""]
+    roots = [Path.cwd(), output]
+    for root in roots:
+        for suffix in suffixes:
+            candidate = root / "node_modules" / ".bin" / f"playwright{suffix}"
+            if candidate.exists():
+                return [str(candidate)]
+    return None
+
+
+def run_browser_check(output: Path, browser_command: str | None = None) -> dict[str, Any]:
+    command = local_playwright_command(output, browser_command)
+    if command is None:
+        return {
+            "name": "browser_run",
+            "status": "blocked",
+            "artifact": "browser-run.json",
+            "reason": "Playwright binary not found. Install project dependencies or pass --browser-command.",
+        }
+    completed = subprocess.run(
+        [*command, "test", "ui-trace.spec.js"],
+        cwd=output,
+        text=True,
+        capture_output=True,
+        timeout=60,
+    )
+    return {
+        "name": "browser_run",
+        "status": "pass" if completed.returncode == 0 else "fail",
+        "artifact": "browser-run.json",
+        "command": " ".join([*command, "test", "ui-trace.spec.js"]),
+        "returncode": completed.returncode,
+        "stdout": completed.stdout[-4000:],
+        "stderr": completed.stderr[-4000:],
+    }
+
+
+def run_pipeline(source: Path, output: Path, run_browser: bool = False, browser_command: str | None = None) -> dict[str, Any]:
     if not source.exists():
         raise FileNotFoundError(f"source not found: {source}")
     output.mkdir(parents=True, exist_ok=True)
@@ -97,6 +140,15 @@ def run_pipeline(source: Path, output: Path) -> dict[str, Any]:
     (output / "ui-trace.spec.js").write_text(spec, encoding="utf-8")
     steps.append({"name": "playwright_spec", "status": "pass", "artifact": "ui-trace.spec.js"})
 
+    if run_browser:
+        browser_result = run_browser_check(output, browser_command=browser_command)
+        write_json(output / "browser-run.json", browser_result)
+        steps.append({
+            "name": "browser_run",
+            "status": browser_result["status"],
+            "artifact": "browser-run.json",
+        })
+
     matrix = trace_to_acceptance_matrix.markdown(trace_to_acceptance_matrix.generate(trace))
     (output / "acceptance-matrix.md").write_text(matrix, encoding="utf-8")
     steps.append({"name": "acceptance_matrix", "status": "pass", "artifact": "acceptance-matrix.md"})
@@ -121,11 +173,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True, help="HTML design source path")
     parser.add_argument("--output", required=True, help="Output directory")
+    parser.add_argument("--run-browser", action="store_true", help="Run generated Playwright checks when a local Playwright binary is available")
+    parser.add_argument("--browser-command", help="Explicit Playwright command or binary path for --run-browser")
     parser.add_argument("--json", action="store_true", help="Print machine-readable result")
     args = parser.parse_args()
     try:
-        result = run_pipeline(Path(args.source), Path(args.output))
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+        result = run_pipeline(Path(args.source), Path(args.output), run_browser=args.run_browser, browser_command=args.browser_command)
+    except (OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as error:
         raise SystemExit(str(error))
     if args.json:
         print(json.dumps(result, indent=2))
