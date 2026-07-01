@@ -714,6 +714,47 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("ARTIFACT_MISSING", codes)
         self.assertIn("ARTIFACT_EMPTY", codes)
 
+    def test_trace_to_acceptance_matrix_outputs_markdown_and_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            trace = tmp_path / "trace.json"
+            matrix = tmp_path / "matrix.md"
+            trace.write_text(
+                json.dumps({
+                    "rows": [
+                        {"id": "C-1", "type": "component", "source_evidence": "header", "expected_ui_behavior": "Header renders", "verification": "screenshot"},
+                        {"id": "I-1", "type": "interaction", "selector": "#save", "expected_behavior": "Save toast appears", "verification": "playwright"},
+                        {"id": "S-1", "type": "state", "source_evidence": "error fixture", "expected_ui_behavior": "Error state renders"},
+                        {"id": "R-1", "type": "responsive", "source_evidence": "mobile frame", "expected_ui_behavior": "Stacks on mobile"},
+                        {"id": "A-1", "type": "accessibility", "source_evidence": "icon button", "expected_ui_behavior": "Accessible name exists"},
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "trace_to_acceptance_matrix.py"
+            subprocess.run(
+                [sys.executable, str(script), str(trace), "--output", str(matrix)],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            json_result = subprocess.run(
+                [sys.executable, str(script), str(trace), "--format", "json"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            markdown_text = matrix.read_text(encoding="utf-8")
+            payload = json.loads(json_result.stdout)
+
+        self.assertIn("| ID | User Goal Fit | Acceptance Examples |", markdown_text)
+        self.assertIn("C-1", markdown_text)
+        self.assertIn("I-1", markdown_text)
+        self.assertEqual(5, len(payload["rows"]))
+        by_id = {row["ID"]: row for row in payload["rows"]}
+        self.assertEqual("real-product-path", by_id["I-1"]["Validation Type"])
+        self.assertEqual("source-only", by_id["C-1"]["Validation Type"])
+
     def test_generate_playwright_checks_maps_trace_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

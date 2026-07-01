@@ -60,6 +60,12 @@ python skills/design-to-code/scripts/validate_trace.py trace.json --validation v
 
 Use `--json` when another tool needs `schema_version`, legacy `problems`, and structured `errors` with stable codes.
 
+Generate an acceptance matrix seed from UI trace rows:
+
+```bash
+python skills/design-to-code/scripts/trace_to_acceptance_matrix.py trace.json --format markdown
+```
+
 Generate a Playwright spec scaffold from UI trace rows:
 
 ```bash
