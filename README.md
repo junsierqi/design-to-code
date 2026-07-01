@@ -92,6 +92,12 @@ Run lightweight source-level UI smoke checks:
 python skills/design-to-code/scripts/ui_smoke_check.py prototype.html --i18n --strict
 ```
 
+Run the local end-to-end tooling pipeline for an HTML source:
+
+```bash
+python skills/design-to-code/scripts/design_to_code_pipeline.py --source skills/design-to-code/examples/pipeline-source.html --output .idea-to-code/design-to-code-pipeline-example --json
+```
+
 Generate an acceptance report from trace and validation JSON:
 
 ```bash
