@@ -973,6 +973,47 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual(1, summary["style_count"])
         self.assertEqual(["Dashboard", "Primary button"], [frame["name"] for frame in summary["frames"]])
 
+    def test_analyze_design_source_controls_figma_summary_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            figma = Path(tmp) / "figma.json"
+            children = [{"id": f"1:{index}", "name": f"Frame {index}", "type": "FRAME", "children": []} for index in range(3)]
+            figma.write_text(
+                json.dumps({
+                    "document": {"id": "0:0", "name": "Document", "type": "DOCUMENT", "children": children},
+                    "components": {f"C:{index}": {"name": f"Component {index}"} for index in range(3)},
+                    "styles": {f"S:{index}": {"name": f"Style {index}"} for index in range(3)},
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "analyze_design_source.py"
+            limited = subprocess.run(
+                [sys.executable, str(script), str(figma), "--max-figma-items", "2"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            unlimited = subprocess.run(
+                [sys.executable, str(script), str(figma), "--max-figma-items", "0"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            invalid = subprocess.run(
+                [sys.executable, str(script), str(figma), "--max-figma-items", "-1"],
+                text=True,
+                capture_output=True,
+            )
+            limited_summary = json.loads(limited.stdout)["figma_summary"]
+            unlimited_summary = json.loads(unlimited.stdout)["figma_summary"]
+
+        self.assertEqual(2, len(limited_summary["frames"]))
+        self.assertTrue(limited_summary["truncated"])
+        self.assertEqual(3, len(unlimited_summary["frames"]))
+        self.assertFalse(unlimited_summary["truncated"])
+        self.assertEqual(0, unlimited_summary["max_items"])
+        self.assertNotEqual(0, invalid.returncode)
+        self.assertIn("--max-figma-items must be 0 or greater", invalid.stderr or invalid.stdout)
+
     def test_analyze_design_source_reports_missing_input(self) -> None:
         script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "analyze_design_source.py"
         result = subprocess.run(

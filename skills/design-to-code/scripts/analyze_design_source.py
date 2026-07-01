@@ -100,25 +100,33 @@ def walk_figma_nodes(node: Any) -> list[dict[str, Any]]:
     return items
 
 
-def figma_summary(payload: dict[str, Any]) -> dict[str, Any]:
+def bounded(items: list[Any], limit: int) -> list[Any]:
+    return items if limit == 0 else items[:limit]
+
+
+def figma_summary(payload: dict[str, Any], max_items: int = 50) -> dict[str, Any]:
     nodes = walk_figma_nodes(payload.get("document"))
     frame_like_types = {"FRAME", "COMPONENT", "COMPONENT_SET", "INSTANCE"}
     frames = [node for node in nodes if node["type"] in frame_like_types]
     components = payload.get("components", {})
     styles = payload.get("styles", {})
+    component_names = [str(value.get("name", key)) for key, value in components.items() if isinstance(value, dict)] if isinstance(components, dict) else []
+    style_names = [str(value.get("name", key)) for key, value in styles.items() if isinstance(value, dict)] if isinstance(styles, dict) else []
     return {
         "document_name": payload.get("name", ""),
         "node_count": len(nodes),
         "frame_count": len(frames),
-        "frames": frames[:50],
+        "max_items": max_items,
+        "truncated": max_items != 0 and (len(frames) > max_items or len(component_names) > max_items or len(style_names) > max_items),
+        "frames": bounded(frames, max_items),
         "component_count": len(components) if isinstance(components, dict) else 0,
-        "component_names": [str(value.get("name", key)) for key, value in list(components.items())[:50] if isinstance(value, dict)] if isinstance(components, dict) else [],
+        "component_names": bounded(component_names, max_items),
         "style_count": len(styles) if isinstance(styles, dict) else 0,
-        "style_names": [str(value.get("name", key)) for key, value in list(styles.items())[:50] if isinstance(value, dict)] if isinstance(styles, dict) else [],
+        "style_names": bounded(style_names, max_items),
     }
 
 
-def json_manifest(path: Path) -> dict[str, Any]:
+def json_manifest(path: Path, max_figma_items: int = 50) -> dict[str, Any]:
     payload = json.loads(read_text(path))
     keys = sorted(payload.keys()) if isinstance(payload, dict) else []
     source_type = "json"
@@ -132,11 +140,11 @@ def json_manifest(path: Path) -> dict[str, Any]:
         "trace_seeds": [],
     }
     if source_type == "figma-json" and isinstance(payload, dict):
-        result["figma_summary"] = figma_summary(payload)
+        result["figma_summary"] = figma_summary(payload, max_items=max_figma_items)
     return result
 
 
-def file_manifest(path: Path) -> dict[str, Any]:
+def file_manifest(path: Path, max_figma_items: int = 50) -> dict[str, Any]:
     suffix = path.suffix.lower()
     base = {
         "path": str(path),
@@ -153,13 +161,15 @@ def file_manifest(path: Path) -> dict[str, Any]:
     elif suffix in TEXT_EXTENSIONS:
         base.update({"source_type": "text-spec", "summary": text_summary(read_text(path)), "trace_seeds": []})
     elif suffix in JSON_EXTENSIONS:
-        base.update(json_manifest(path))
+        base.update(json_manifest(path, max_figma_items=max_figma_items))
     else:
         raise ValueError(f"unsupported design source extension: {suffix or '<none>'}")
     return base
 
 
-def analyze(path: Path) -> dict[str, Any]:
+def analyze(path: Path, max_figma_items: int = 50) -> dict[str, Any]:
+    if max_figma_items < 0:
+        raise ValueError("--max-figma-items must be 0 or greater")
     if not path.exists():
         raise FileNotFoundError(f"design source not found: {path}")
     if path.is_dir():
@@ -168,9 +178,9 @@ def analyze(path: Path) -> dict[str, Any]:
             "path": str(path),
             "source_type": "directory",
             "file_count": len(files),
-            "files": [file_manifest(child) for child in files],
+            "files": [file_manifest(child, max_figma_items=max_figma_items) for child in files],
         }
-    return file_manifest(path)
+    return file_manifest(path, max_figma_items=max_figma_items)
 
 
 def markdown(manifest: dict[str, Any]) -> str:
@@ -200,11 +210,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", help="Local design source file or directory")
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
+    parser.add_argument("--max-figma-items", type=int, default=50, help="Maximum representative Figma frames/components/styles to include; 0 means unlimited")
     parser.add_argument("--output", help="Optional output path")
     args = parser.parse_args()
 
     try:
-        manifest = analyze(Path(args.source))
+        manifest = analyze(Path(args.source), max_figma_items=args.max_figma_items)
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as error:
         raise SystemExit(str(error))
     output = json.dumps(manifest, indent=2) + "\n" if args.format == "json" else markdown(manifest)

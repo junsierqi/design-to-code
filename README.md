@@ -81,7 +81,9 @@ python skills/design-to-code/scripts/analyze_design_source.py ./designs --format
 ```
 
 Figma export JSON files are detected as `figma-json` and include a compact
-`figma_summary` for frames, components, and styles.
+`figma_summary` for frames, components, and styles. The summary includes up to
+50 representative items by default; use `--max-figma-items 0` when a full
+uncapped export summary is needed.
 
 Capture a reproducible snapshot from a local file, `file://` URL, or public
 `http(s)` design source:
