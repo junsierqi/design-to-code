@@ -6,10 +6,13 @@ from __future__ import annotations
 import importlib.util
 import json
 import argparse
+import functools
+import http.server
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 import zlib
 from pathlib import Path
@@ -1137,6 +1140,60 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual("pass", browser_run["status"])
         self.assertIn({"name": "browser_run", "status": "pass", "artifact": "browser-run.json"}, payload["steps"])
         self.assertTrue(marker_exists)
+
+    def test_capture_design_snapshot_captures_local_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "source.html"
+            output = tmp_path / "snapshot"
+            source.write_text("<main><button>Save</button></main>", encoding="utf-8")
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "capture_design_snapshot.py"
+            result = subprocess.run(
+                [sys.executable, str(script), str(source), "--output", str(output), "--json"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            payload = json.loads(result.stdout)
+            snapshot = json.loads((output / "snapshot.json").read_text(encoding="utf-8"))
+
+        self.assertEqual("design-to-code.snapshot.v1", payload["schema_version"])
+        self.assertEqual("local-file", payload["source_type"])
+        self.assertEqual(payload, snapshot)
+        self.assertIn("Save", payload["text_sample"])
+
+    def test_capture_design_snapshot_captures_local_http_url(self) -> None:
+        class QuietHandler(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, format: str, *args: object) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "source.html"
+            output = tmp_path / "snapshot"
+            source.write_text("<main><h1>Remote source</h1></main>", encoding="utf-8")
+            handler = functools.partial(QuietHandler, directory=str(tmp_path))
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                url = f"http://127.0.0.1:{server.server_port}/source.html"
+                script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "capture_design_snapshot.py"
+                result = subprocess.run(
+                    [sys.executable, str(script), url, "--output", str(output), "--json"],
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                )
+                payload = json.loads(result.stdout)
+            finally:
+                server.shutdown()
+                server.server_close()
+
+        self.assertEqual("url", payload["source_type"])
+        self.assertEqual(200, payload["status"])
+        self.assertIn("Remote source", payload["text_sample"])
+        self.assertEqual("source-content.html", payload["artifact"])
 
     def test_dogfood_tooling_surfaces_failed_and_deferred_ui_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

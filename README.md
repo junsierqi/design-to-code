@@ -80,6 +80,13 @@ Create a design-source manifest from a local file or directory:
 python skills/design-to-code/scripts/analyze_design_source.py ./designs --format markdown
 ```
 
+Capture a reproducible snapshot from a local file, `file://` URL, or public
+`http(s)` design source:
+
+```bash
+python skills/design-to-code/scripts/capture_design_snapshot.py ./designs/source.html --output .idea-to-code/design-snapshot --json
+```
+
 Compare screenshot artifacts with a byte-diff threshold. PNG files work with the
 standard-library fallback; install Pillow only when comparing JPEG, WebP, or
 other raster formats:
