@@ -610,6 +610,8 @@ class ValidateDesignToCodeTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertEqual([], payload["problems"])
+        self.assertEqual("design-to-code.trace-validation.v1", payload["schema_version"])
+        self.assertEqual([], payload["errors"])
 
     def test_validate_trace_cli_fails_invalid_rows_and_missing_coverage(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -649,6 +651,12 @@ class ValidateDesignToCodeTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
             )
+            json_result = subprocess.run(
+                [sys.executable, str(script), str(trace), "--validation", str(validation), "--json"],
+                text=True,
+                capture_output=True,
+            )
+            payload = json.loads(json_result.stdout)
 
         self.assertEqual(1, result.returncode)
         self.assertIn("trace row 1 has invalid id: bad-id", result.stdout)
@@ -656,6 +664,12 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("interaction row bad-id has no detected behavior or deferred reason", result.stdout)
         self.assertIn("trace row S-1 is deferred/blocked without a reason or owner", result.stdout)
         self.assertIn("trace row has no validation check coverage: S-1", result.stdout)
+        codes = {error["code"] for error in payload["errors"]}
+        self.assertIn("TRACE_INVALID_ID", codes)
+        self.assertIn("TRACE_MISSING_FIELD", codes)
+        self.assertIn("TRACE_INTERACTION_BEHAVIOR_MISSING", codes)
+        self.assertIn("TRACE_DEFERRED_REASON_MISSING", codes)
+        self.assertIn("VALIDATION_COVERAGE_MISSING", codes)
 
     def test_validate_trace_cli_checks_artifact_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -686,10 +700,19 @@ class ValidateDesignToCodeTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
             )
+            json_result = subprocess.run(
+                [sys.executable, str(script), str(trace), "--artifact-root", str(artifacts), "--json"],
+                text=True,
+                capture_output=True,
+            )
+            payload = json.loads(json_result.stdout)
 
         self.assertEqual(1, result.returncode)
         self.assertIn("artifact does not exist for C-1: missing.png", result.stdout)
         self.assertIn("artifact is empty for C-1: empty.png", result.stdout)
+        codes = {error["code"] for error in payload["errors"]}
+        self.assertIn("ARTIFACT_MISSING", codes)
+        self.assertIn("ARTIFACT_EMPTY", codes)
 
     def test_generate_playwright_checks_maps_trace_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

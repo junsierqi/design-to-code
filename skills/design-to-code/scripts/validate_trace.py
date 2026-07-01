@@ -29,6 +29,7 @@ PASSING_STATUSES = {"pass", "passed", "ok", "complete", "completed", "implemente
 DEFERRED_STATUSES = {"deferred", "blocked", "not-applicable", "not_applicable"}
 ARTIFACT_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".pdf", ".json", ".md", ".html", ".zip", ".txt")
 ARTIFACT_FIELDS = ("artifact", "artifacts", "screenshot", "screenshots", "path", "paths", "verification", "evidence")
+SCHEMA_VERSION = "design-to-code.trace-validation.v1"
 
 
 def load_json(path: Path) -> Any:
@@ -118,6 +119,40 @@ def artifact_problems(items: list[dict[str, Any]], artifact_root: Path) -> list[
     return problems
 
 
+def error_code(problem: str) -> str:
+    if problem == "no UI trace rows supplied":
+        return "TRACE_NO_ROWS"
+    if "invalid id" in problem:
+        return "TRACE_INVALID_ID"
+    if problem.startswith("duplicate trace id"):
+        return "TRACE_DUPLICATE_ID"
+    if " missing " in problem:
+        return "TRACE_MISSING_FIELD"
+    if "deferred/blocked without a reason" in problem:
+        return "TRACE_DEFERRED_REASON_MISSING"
+    if problem.startswith("interaction row"):
+        return "TRACE_INTERACTION_BEHAVIOR_MISSING"
+    if problem == "validation has no checks":
+        return "VALIDATION_NO_CHECKS"
+    if "no validation check coverage" in problem:
+        return "VALIDATION_COVERAGE_MISSING"
+    if problem.startswith("artifact path must be relative"):
+        return "ARTIFACT_ABSOLUTE_PATH"
+    if "artifact path escapes" in problem:
+        return "ARTIFACT_PATH_ESCAPE"
+    if "artifact does not exist" in problem:
+        return "ARTIFACT_MISSING"
+    if "artifact is not a file" in problem:
+        return "ARTIFACT_NOT_FILE"
+    if "artifact is empty" in problem:
+        return "ARTIFACT_EMPTY"
+    return "TRACE_VALIDATION_ERROR"
+
+
+def structured_errors(problems: list[str]) -> list[dict[str, str]]:
+    return [{"code": error_code(problem), "message": problem} for problem in problems]
+
+
 def validate_trace(trace: Any, validation: Any | None = None, artifact_root: Path | None = None) -> list[str]:
     problems: list[str] = []
     rows = trace_rows(trace)
@@ -181,10 +216,12 @@ def main() -> int:
     artifact_root = Path(args.artifact_root).resolve() if args.artifact_root else None
     problems = validate_trace(load_json(trace_path), validation=validation, artifact_root=artifact_root)
     result = {
+        "schema_version": SCHEMA_VERSION,
         "trace": str(trace_path),
         "ok": not problems,
         "problem_count": len(problems),
         "problems": problems,
+        "errors": structured_errors(problems),
     }
     if args.json:
         print(json.dumps(result, indent=2))

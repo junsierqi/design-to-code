@@ -58,6 +58,8 @@ Validate UI trace rows before implementation or closeout:
 python skills/design-to-code/scripts/validate_trace.py trace.json --validation validation.json --artifact-root artifacts
 ```
 
+Use `--json` when another tool needs `schema_version`, legacy `problems`, and structured `errors` with stable codes.
+
 Generate a Playwright spec scaffold from UI trace rows:
 
 ```bash
