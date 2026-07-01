@@ -58,6 +58,12 @@ Validate UI trace rows before implementation or closeout:
 python skills/design-to-code/scripts/validate_trace.py trace.json --validation validation.json --artifact-root artifacts
 ```
 
+Generate a Playwright spec scaffold from UI trace rows:
+
+```bash
+python skills/design-to-code/scripts/generate_playwright_checks.py --trace trace.json --output e2e/idea-to-code/ui-trace.spec.js --default-url /dashboard
+```
+
 Generate an acceptance report from trace and validation JSON:
 
 ```bash

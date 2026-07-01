@@ -677,6 +677,87 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("artifact does not exist for C-1: missing.png", result.stdout)
         self.assertIn("artifact is empty for C-1: empty.png", result.stdout)
 
+    def test_generate_playwright_checks_maps_trace_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            trace = tmp_path / "trace.json"
+            spec = tmp_path / "ui-trace.spec.js"
+            trace.write_text(
+                json.dumps({
+                    "rows": [
+                        {
+                            "id": "C-1",
+                            "type": "component",
+                            "source_evidence": "main",
+                            "expected_ui_behavior": "Dashboard renders",
+                            "implementation": "src/App.tsx",
+                            "verification": "screenshot",
+                            "status": "pass",
+                        },
+                        {
+                            "id": "I-1",
+                            "type": "interaction",
+                            "selector": "#search",
+                            "trigger": "input",
+                            "expected_behavior": "Search filters rows",
+                            "implementation": "src/App.tsx",
+                            "verification": "playwright",
+                            "status": "pass",
+                        },
+                        {
+                            "id": "R-1",
+                            "type": "responsive",
+                            "source_evidence": "mobile frame",
+                            "expected_ui_behavior": "Mobile stacks content",
+                            "implementation": "src/App.css",
+                            "verification": "viewport",
+                            "status": "pass",
+                        },
+                        {
+                            "id": "A-1",
+                            "type": "accessibility",
+                            "source_evidence": "button[aria-label='Save']",
+                            "expected_ui_behavior": "Save has accessible name",
+                            "implementation": "src/App.tsx",
+                            "verification": "role locator",
+                            "status": "pass",
+                        },
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "generate_playwright_checks.py"
+            subprocess.run(
+                [sys.executable, str(script), "--trace", str(trace), "--output", str(spec), "--default-url", "/dashboard"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            text = spec.read_text(encoding="utf-8")
+
+        self.assertIn("Covers: C-1", text)
+        self.assertIn("Covers: I-1", text)
+        self.assertIn("await target.fill('design-to-code check');", text)
+        self.assertIn("await page.setViewportSize({ width: 390, height: 844 });", text)
+        self.assertIn("Verify keyboard path", text)
+        self.assertIn("PLAYWRIGHT_BASE_URL", text)
+        self.assertIn("/dashboard", text)
+
+    def test_generate_playwright_checks_outputs_placeholder_for_empty_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = Path(tmp) / "trace.json"
+            trace.write_text('{"rows":[]}', encoding="utf-8")
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "generate_playwright_checks.py"
+            result = subprocess.run(
+                [sys.executable, str(script), "--trace", str(trace)],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        self.assertIn("trace scaffold placeholder", result.stdout)
+        self.assertIn("Add UI trace rows", result.stdout)
+
     def test_dogfood_tooling_surfaces_failed_and_deferred_ui_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
