@@ -935,6 +935,44 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual(["figma-json", "text-spec"], sorted(item["source_type"] for item in payload["files"]))
         self.assertIn("| File | Type | Trace Seeds |", md_result.stdout)
 
+    def test_analyze_design_source_summarizes_figma_export_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            figma = Path(tmp) / "figma.json"
+            figma.write_text(
+                json.dumps({
+                    "name": "Design file",
+                    "document": {
+                        "id": "0:0",
+                        "name": "Document",
+                        "type": "DOCUMENT",
+                        "children": [
+                            {
+                                "id": "1:1",
+                                "name": "Dashboard",
+                                "type": "FRAME",
+                                "children": [
+                                    {"id": "1:2", "name": "Primary button", "type": "COMPONENT", "children": []}
+                                ],
+                            }
+                        ],
+                    },
+                    "components": {"1:2": {"name": "Primary button"}},
+                    "styles": {"S:1": {"name": "Brand / Fill"}},
+                }),
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "analyze_design_source.py"
+            result = subprocess.run([sys.executable, str(script), str(figma)], text=True, capture_output=True, check=True)
+            payload = json.loads(result.stdout)
+            summary = payload["figma_summary"]
+
+        self.assertEqual("figma-json", payload["source_type"])
+        self.assertEqual("Design file", summary["document_name"])
+        self.assertEqual(2, summary["frame_count"])
+        self.assertEqual(1, summary["component_count"])
+        self.assertEqual(1, summary["style_count"])
+        self.assertEqual(["Dashboard", "Primary button"], [frame["name"] for frame in summary["frames"]])
+
     def test_analyze_design_source_reports_missing_input(self) -> None:
         script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "analyze_design_source.py"
         result = subprocess.run(

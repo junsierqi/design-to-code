@@ -80,6 +80,9 @@ Create a design-source manifest from a local file or directory:
 python skills/design-to-code/scripts/analyze_design_source.py ./designs --format markdown
 ```
 
+Figma export JSON files are detected as `figma-json` and include a compact
+`figma_summary` for frames, components, and styles.
+
 Capture a reproducible snapshot from a local file, `file://` URL, or public
 `http(s)` design source:
 

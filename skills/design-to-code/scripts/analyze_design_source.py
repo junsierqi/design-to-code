@@ -83,19 +83,57 @@ def html_manifest(path: Path) -> dict[str, Any]:
     }
 
 
+def walk_figma_nodes(node: Any) -> list[dict[str, Any]]:
+    if not isinstance(node, dict):
+        return []
+    items = []
+    node_type = str(node.get("type", ""))
+    if node_type:
+        items.append({
+            "id": str(node.get("id", "")),
+            "name": str(node.get("name", "")),
+            "type": node_type,
+            "child_count": len(node.get("children", [])) if isinstance(node.get("children"), list) else 0,
+        })
+    for child in node.get("children", []) if isinstance(node.get("children"), list) else []:
+        items.extend(walk_figma_nodes(child))
+    return items
+
+
+def figma_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    nodes = walk_figma_nodes(payload.get("document"))
+    frame_like_types = {"FRAME", "COMPONENT", "COMPONENT_SET", "INSTANCE"}
+    frames = [node for node in nodes if node["type"] in frame_like_types]
+    components = payload.get("components", {})
+    styles = payload.get("styles", {})
+    return {
+        "document_name": payload.get("name", ""),
+        "node_count": len(nodes),
+        "frame_count": len(frames),
+        "frames": frames[:50],
+        "component_count": len(components) if isinstance(components, dict) else 0,
+        "component_names": [str(value.get("name", key)) for key, value in list(components.items())[:50] if isinstance(value, dict)] if isinstance(components, dict) else [],
+        "style_count": len(styles) if isinstance(styles, dict) else 0,
+        "style_names": [str(value.get("name", key)) for key, value in list(styles.items())[:50] if isinstance(value, dict)] if isinstance(styles, dict) else [],
+    }
+
+
 def json_manifest(path: Path) -> dict[str, Any]:
     payload = json.loads(read_text(path))
     keys = sorted(payload.keys()) if isinstance(payload, dict) else []
     source_type = "json"
     if any(key.lower() in {"frames", "document", "components", "styles"} for key in keys):
         source_type = "figma-json"
-    return {
+    result = {
         "path": str(path),
         "source_type": source_type,
         "json_type": type(payload).__name__,
         "top_level_keys": keys[:50],
         "trace_seeds": [],
     }
+    if source_type == "figma-json" and isinstance(payload, dict):
+        result["figma_summary"] = figma_summary(payload)
+    return result
 
 
 def file_manifest(path: Path) -> dict[str, Any]:
