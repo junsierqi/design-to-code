@@ -961,6 +961,8 @@ class ValidateDesignToCodeTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertEqual(0, payload["different_bytes"])
+        self.assertIn(payload["expected"]["loader"], {"pillow", "stdlib-png"})
+        self.assertIn(payload["actual"]["loader"], {"pillow", "stdlib-png"})
 
     def test_compare_screenshots_fails_threshold_and_dimension_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -989,6 +991,37 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertGreater(diff_payload["diff_ratio"], 0.01)
         self.assertEqual(1, dimension_result.returncode)
         self.assertFalse(dimension_payload["same_dimensions"])
+
+    def test_compare_screenshots_reports_optional_pillow_support(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            expected = tmp_path / "expected.jpg"
+            actual = tmp_path / "actual.jpg"
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "compare_screenshots.py"
+            if importlib.util.find_spec("PIL") is not None:
+                from PIL import Image
+
+                Image.new("RGB", (2, 2), (255, 0, 0)).save(expected)
+                Image.new("RGB", (2, 2), (255, 0, 0)).save(actual)
+                result = subprocess.run(
+                    [sys.executable, str(script), "--expected", str(expected), "--actual", str(actual), "--threshold", "0", "--json"],
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                )
+                payload = json.loads(result.stdout)
+                self.assertTrue(payload["ok"])
+                self.assertEqual("pillow", payload["expected"]["loader"])
+            else:
+                expected.write_bytes(b"not a png")
+                actual.write_bytes(b"not a png")
+                result = subprocess.run(
+                    [sys.executable, str(script), "--expected", str(expected), "--actual", str(actual), "--json"],
+                    text=True,
+                    capture_output=True,
+                )
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("Install Pillow", result.stderr or result.stdout)
 
     def test_ui_smoke_check_reports_accessibility_and_i18n_findings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare PNG screenshots with dependency-light pixel metrics."""
+"""Compare screenshots with dependency-light pixel metrics."""
 
 from __future__ import annotations
 
@@ -9,6 +9,11 @@ import struct
 import zlib
 from pathlib import Path
 from typing import Any
+
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover - exercised through fallback behavior.
+    Image = None  # type: ignore[assignment]
 
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -76,9 +81,44 @@ def read_png(path: Path) -> dict[str, Any]:
     return {"path": str(path), "width": width, "height": height, "channels": channels, "rows": rows}
 
 
+def read_with_pillow(path: Path) -> dict[str, Any]:
+    if Image is None:
+        raise ValueError(
+            f"unsupported non-PNG image without Pillow: {path}. "
+            "Install Pillow to compare JPEG, WebP, and other raster formats."
+        )
+    with Image.open(path) as image:
+        converted = image.convert("RGBA")
+        width, height = converted.size
+        raw = converted.tobytes()
+    stride = width * 4
+    rows = [raw[offset:offset + stride] for offset in range(0, len(raw), stride)]
+    return {
+        "path": str(path),
+        "width": width,
+        "height": height,
+        "channels": 4,
+        "rows": rows,
+        "loader": "pillow",
+    }
+
+
+def load_image(path: Path) -> dict[str, Any]:
+    if Image is not None:
+        return read_with_pillow(path)
+    if path.suffix.lower() != ".png":
+        raise ValueError(
+            f"unsupported non-PNG image without Pillow: {path}. "
+            "Install Pillow to compare JPEG, WebP, and other raster formats."
+        )
+    image = read_png(path)
+    image["loader"] = "stdlib-png"
+    return image
+
+
 def compare(expected: Path, actual: Path, threshold: float | None = None) -> dict[str, Any]:
-    left = read_png(expected)
-    right = read_png(actual)
+    left = load_image(expected)
+    right = load_image(actual)
     same_dimensions = left["width"] == right["width"] and left["height"] == right["height"]
     comparable_rows = min(left["height"], right["height"])
     comparable_bytes = 0
@@ -95,8 +135,8 @@ def compare(expected: Path, actual: Path, threshold: float | None = None) -> dic
     if dimension_penalty:
         passed = False
     return {
-        "expected": {"path": left["path"], "width": left["width"], "height": left["height"]},
-        "actual": {"path": right["path"], "width": right["width"], "height": right["height"]},
+        "expected": {"path": left["path"], "width": left["width"], "height": left["height"], "loader": left["loader"]},
+        "actual": {"path": right["path"], "width": right["width"], "height": right["height"], "loader": right["loader"]},
         "same_dimensions": same_dimensions,
         "different_bytes": different_bytes,
         "compared_bytes": comparable_bytes,
@@ -108,8 +148,8 @@ def compare(expected: Path, actual: Path, threshold: float | None = None) -> dic
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--expected", required=True, help="Expected/baseline PNG")
-    parser.add_argument("--actual", required=True, help="Actual PNG")
+    parser.add_argument("--expected", required=True, help="Expected/baseline image")
+    parser.add_argument("--actual", required=True, help="Actual image")
     parser.add_argument("--threshold", type=float, default=None, help="Maximum allowed byte diff ratio")
     parser.add_argument("--json", action="store_true", help="Print machine-readable output")
     args = parser.parse_args()
