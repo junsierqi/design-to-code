@@ -46,6 +46,8 @@ These are source-only checks for this skill repository. They do not replace runt
 
 ## Tooling
 
+Canonical example inputs live under `skills/design-to-code/examples/`.
+
 Extract interaction seed rows from an HTML prototype:
 
 ```bash

@@ -1,0 +1,24 @@
+{
+  "rows": [
+    {
+      "id": "C-1",
+      "type": "component",
+      "source_evidence": "pipeline-source.html main dashboard shell",
+      "expected_ui_behavior": "Dashboard shell renders with heading, search, create action, and status region",
+      "implementation": "example fixture",
+      "verification": "pipeline acceptance report",
+      "status": "pass"
+    },
+    {
+      "id": "I-1",
+      "type": "interaction",
+      "selector": "#create-project",
+      "expected_ui_behavior": "Clicking create project shows visible status feedback",
+      "implementation": "example fixture click listener",
+      "verification": "generated Playwright scaffold",
+      "status": "pass",
+      "behavior_status": "detected",
+      "handler": "onclick=openCreate"
+    }
+  ]
+}

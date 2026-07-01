@@ -20,6 +20,9 @@ REQUIRED_FILES = [
     "skills/design-to-code/references/ui-verification.md",
     "skills/design-to-code/references/acceptance-report.md",
     "skills/design-to-code/references/playwright-patterns.md",
+    "skills/design-to-code/examples/trace.json",
+    "skills/design-to-code/examples/validation.json",
+    "skills/design-to-code/examples/pipeline-source.html",
     "skills/design-to-code/scripts/extract_html_interactions.py",
     "skills/design-to-code/scripts/validate_trace.py",
     "skills/design-to-code/scripts/trace_to_acceptance_matrix.py",
@@ -127,6 +130,7 @@ README_REQUIRED_PHRASES = [
     "test_validate_design_to_code.py",
     "install_skill.py",
     "skills/design-to-code/",
+    "skills/design-to-code/examples/",
     "--strict",
 ]
 

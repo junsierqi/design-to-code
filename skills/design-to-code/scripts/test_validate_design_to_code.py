@@ -755,6 +755,41 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual("real-product-path", by_id["I-1"]["Validation Type"])
         self.assertEqual("source-only", by_id["C-1"]["Validation Type"])
 
+    def test_canonical_examples_pass_current_tools(self) -> None:
+        examples = REPO_ROOT / "skills" / "design-to-code" / "examples"
+        trace = examples / "trace.json"
+        validation = examples / "validation.json"
+        html = examples / "pipeline-source.html"
+        validator_script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "validate_trace.py"
+        analyzer_script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "analyze_design_source.py"
+        matrix_script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "trace_to_acceptance_matrix.py"
+        trace_result = subprocess.run(
+            [sys.executable, str(validator_script), str(trace), "--validation", str(validation), "--json"],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        manifest_result = subprocess.run(
+            [sys.executable, str(analyzer_script), str(html)],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        matrix_result = subprocess.run(
+            [sys.executable, str(matrix_script), str(trace), "--format", "json"],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        trace_payload = json.loads(trace_result.stdout)
+        manifest_payload = json.loads(manifest_result.stdout)
+        matrix_payload = json.loads(matrix_result.stdout)
+
+        self.assertTrue(trace_payload["ok"])
+        self.assertEqual("html", manifest_payload["source_type"])
+        self.assertGreaterEqual(len(manifest_payload["trace_seeds"]), 2)
+        self.assertEqual(2, len(matrix_payload["rows"]))
+
     def test_generate_playwright_checks_maps_trace_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

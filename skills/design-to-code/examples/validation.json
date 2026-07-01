@@ -1,0 +1,20 @@
+{
+  "validation_type": "source-only",
+  "result": "pass",
+  "checks": [
+    {
+      "id": "TC-C-1",
+      "covers": "C-1",
+      "name": "Dashboard shell example",
+      "status": "pass",
+      "evidence": "pipeline-source.html contains the main dashboard shell"
+    },
+    {
+      "id": "TC-I-1",
+      "covers": "I-1",
+      "name": "Create action example",
+      "status": "pass",
+      "evidence": "pipeline-source.html contains create-project click feedback"
+    }
+  ]
+}
