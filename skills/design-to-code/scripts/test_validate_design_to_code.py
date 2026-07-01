@@ -1261,8 +1261,44 @@ class ValidateDesignToCodeTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertEqual("pass", browser_run["status"])
+        self.assertTrue(browser_run["browser_dependencies"]["available"])
         self.assertIn({"name": "browser_run", "status": "pass", "artifact": "browser-run.json"}, payload["steps"])
         self.assertTrue(marker_exists)
+
+    def test_design_to_code_pipeline_reports_browser_dependency_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            fake_runner = tmp_path / "fake_playwright.py"
+            fake_runner.write_text("raise SystemExit(0)\n", encoding="utf-8")
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "design_to_code_pipeline.py"
+            missing = subprocess.run(
+                [sys.executable, str(script), "--output", str(tmp_path / "missing"), "--check-browser-deps", "--json"],
+                text=True,
+                capture_output=True,
+            )
+            available = subprocess.run(
+                [
+                    sys.executable,
+                    str(script),
+                    "--output",
+                    str(tmp_path / "available"),
+                    "--check-browser-deps",
+                    "--browser-command",
+                    f"{sys.executable} {fake_runner}",
+                    "--json",
+                ],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            missing_payload = json.loads(missing.stdout)
+            available_payload = json.loads(available.stdout)
+
+        self.assertEqual(1, missing.returncode)
+        self.assertFalse(missing_payload["browser_dependencies"]["available"])
+        self.assertEqual("blocked", missing_payload["browser_dependencies"]["status"])
+        self.assertTrue(available_payload["browser_dependencies"]["available"])
+        self.assertEqual("available", available_payload["browser_dependencies"]["status"])
 
     def test_capture_design_snapshot_captures_local_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

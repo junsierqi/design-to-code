@@ -86,15 +86,34 @@ def local_playwright_command(output: Path, browser_command: str | None = None) -
     return None
 
 
-def run_browser_check(output: Path, browser_command: str | None = None) -> dict[str, Any]:
+def browser_dependency_status(output: Path, browser_command: str | None = None) -> dict[str, Any]:
     command = local_playwright_command(output, browser_command)
     if command is None:
+        return {
+            "available": False,
+            "status": "blocked",
+            "command": None,
+            "reason": "Playwright binary not found. Install project dependencies or pass --browser-command.",
+        }
+    return {
+        "available": True,
+        "status": "available",
+        "command": command,
+        "reason": "",
+    }
+
+
+def run_browser_check(output: Path, browser_command: str | None = None) -> dict[str, Any]:
+    deps = browser_dependency_status(output, browser_command)
+    if not deps["available"]:
         return {
             "name": "browser_run",
             "status": "blocked",
             "artifact": "browser-run.json",
-            "reason": "Playwright binary not found. Install project dependencies or pass --browser-command.",
+            "browser_dependencies": deps,
+            "reason": deps["reason"],
         }
+    command = deps["command"]
     completed = subprocess.run(
         [*command, "test", "ui-trace.spec.js"],
         cwd=output,
@@ -106,6 +125,7 @@ def run_browser_check(output: Path, browser_command: str | None = None) -> dict[
         "name": "browser_run",
         "status": "pass" if completed.returncode == 0 else "fail",
         "artifact": "browser-run.json",
+        "browser_dependencies": deps,
         "command": " ".join([*command, "test", "ui-trace.spec.js"]),
         "returncode": completed.returncode,
         "stdout": completed.stdout[-4000:],
@@ -171,12 +191,25 @@ def run_pipeline(source: Path, output: Path, run_browser: bool = False, browser_
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", required=True, help="HTML design source path")
+    parser.add_argument("--source", help="HTML design source path")
     parser.add_argument("--output", required=True, help="Output directory")
     parser.add_argument("--run-browser", action="store_true", help="Run generated Playwright checks when a local Playwright binary is available")
+    parser.add_argument("--check-browser-deps", action="store_true", help="Report Playwright command availability and exit")
     parser.add_argument("--browser-command", help="Explicit Playwright command or binary path for --run-browser")
     parser.add_argument("--json", action="store_true", help="Print machine-readable result")
     args = parser.parse_args()
+    if args.check_browser_deps:
+        result = {"ok": browser_dependency_status(Path(args.output), browser_command=args.browser_command)["available"], "browser_dependencies": browser_dependency_status(Path(args.output), browser_command=args.browser_command)}
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            deps = result["browser_dependencies"]
+            print(f"browser dependencies: {deps['status']}")
+            if deps["reason"]:
+                print(deps["reason"])
+        return 0 if result["ok"] else 1
+    if not args.source:
+        parser.error("--source is required unless --check-browser-deps is used")
     try:
         result = run_pipeline(Path(args.source), Path(args.output), run_browser=args.run_browser, browser_command=args.browser_command)
     except (OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as error:
