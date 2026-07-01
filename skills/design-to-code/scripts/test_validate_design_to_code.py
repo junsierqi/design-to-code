@@ -1354,6 +1354,66 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("Remote source", payload["text_sample"])
         self.assertEqual("source-content.html", payload["artifact"])
 
+    def test_capture_design_snapshot_reports_http_error_diagnostics(self) -> None:
+        class QuietHandler(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, format: str, *args: object) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            output = tmp_path / "snapshot"
+            handler = functools.partial(QuietHandler, directory=str(tmp_path))
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                url = f"http://127.0.0.1:{server.server_port}/missing.html"
+                script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "capture_design_snapshot.py"
+                result = subprocess.run(
+                    [sys.executable, str(script), url, "--output", str(output), "--json"],
+                    text=True,
+                    capture_output=True,
+                )
+                payload = json.loads(result.stdout)
+            finally:
+                server.shutdown()
+                server.server_close()
+
+        self.assertEqual(1, result.returncode)
+        self.assertFalse(payload["ok"])
+        self.assertEqual("http-error", payload["diagnostic"]["code"])
+        self.assertEqual(404, payload["diagnostic"]["details"]["status"])
+
+    def test_capture_design_snapshot_reports_connection_refused_diagnostics(self) -> None:
+        snapshot_script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "capture_design_snapshot.py"
+        snapshot_spec = importlib.util.spec_from_file_location("capture_design_snapshot", snapshot_script)
+        snapshot_module = importlib.util.module_from_spec(snapshot_spec)
+        assert snapshot_spec.loader is not None
+        snapshot_spec.loader.exec_module(snapshot_module)
+        classified = snapshot_module.classify_url_error(
+            "http://127.0.0.1:9/source.html",
+            snapshot_module.URLError(ConnectionRefusedError("connection refused")),
+        )
+        self.assertEqual("connection-refused", classified["diagnostic"]["code"])
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
+        port = server.server_port
+        server.server_close()
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "snapshot"
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "capture_design_snapshot.py"
+            result = subprocess.run(
+                [sys.executable, str(script), f"http://127.0.0.1:{port}/source.html", "--output", str(output), "--timeout", "1", "--json"],
+                text=True,
+                capture_output=True,
+            )
+            payload = json.loads(result.stdout)
+
+        self.assertEqual(1, result.returncode)
+        self.assertFalse(payload["ok"])
+        self.assertIn(payload["diagnostic"]["code"], {"connection-refused", "timeout"})
+        self.assertTrue(payload["diagnostic"]["retryable"])
+
     def test_dogfood_tooling_surfaces_failed_and_deferred_ui_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

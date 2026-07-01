@@ -6,13 +6,56 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import socket
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlparse
 from urllib.request import ProxyHandler, Request, build_opener
 
 
 TEXT_TYPES = ("text/", "application/json", "application/xml", "application/xhtml+xml")
+
+
+class SnapshotError(Exception):
+    def __init__(self, diagnostic: dict[str, Any]) -> None:
+        super().__init__(diagnostic["diagnostic"]["message"])
+        self.diagnostic = diagnostic
+
+
+def diagnostic(code: str, message: str, source: str, retryable: bool, details: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "source": source,
+        "diagnostic": {
+            "code": code,
+            "message": message,
+            "retryable": retryable,
+            "details": details or {},
+        },
+    }
+
+
+def classify_url_error(source: str, error: BaseException) -> dict[str, Any]:
+    if isinstance(error, HTTPError):
+        return diagnostic(
+            "http-error",
+            f"HTTP {error.code} while fetching design source: {source}",
+            source,
+            retryable=500 <= error.code < 600,
+            details={"status": error.code, "reason": error.reason},
+        )
+    reason = error.reason if isinstance(error, URLError) else error
+    reason_text = str(reason)
+    if isinstance(reason, TimeoutError) or "timed out" in reason_text.lower():
+        return diagnostic("timeout", f"Timed out while fetching design source: {source}", source, retryable=True)
+    if isinstance(reason, ConnectionRefusedError) or "connection refused" in reason_text.lower():
+        return diagnostic("connection-refused", f"Connection refused while fetching design source: {source}", source, retryable=True)
+    if isinstance(reason, socket.gaierror):
+        return diagnostic("dns-error", f"DNS lookup failed while fetching design source: {source}", source, retryable=True, details={"reason": reason_text})
+    if isinstance(error, ValueError):
+        return diagnostic("invalid-url", f"Invalid design source URL: {source}", source, retryable=False, details={"reason": reason_text})
+    return diagnostic("url-error", f"Could not fetch design source: {source}", source, retryable=True, details={"reason": reason_text})
 
 
 def write_json(path: Path, payload: Any) -> None:
@@ -59,11 +102,14 @@ def capture_local(source: str, output: Path) -> dict[str, Any]:
 def capture_url(source: str, output: Path, timeout: float) -> dict[str, Any]:
     request = Request(source, headers={"User-Agent": "design-to-code-snapshot/1.0"})
     opener = build_opener(ProxyHandler({}))
-    with opener.open(request, timeout=timeout) as response:
-        data = response.read()
-        final_url = response.geturl()
-        content_type = response.headers.get("content-type", "application/octet-stream").split(";")[0]
-        status = getattr(response, "status", 200)
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            data = response.read()
+            final_url = response.geturl()
+            content_type = response.headers.get("content-type", "application/octet-stream").split(";")[0]
+            status = getattr(response, "status", 200)
+    except (HTTPError, URLError, TimeoutError, ValueError) as error:
+        raise SnapshotError(classify_url_error(source, error)) from error
     suffix = ".html" if is_probably_text(content_type, Path(urlparse(final_url).path)) else ".bin"
     artifact = output / f"source-content{suffix}"
     artifact.parent.mkdir(parents=True, exist_ok=True)
@@ -104,6 +150,11 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = capture(args.source, Path(args.output), timeout=args.timeout)
+    except SnapshotError as error:
+        if args.json:
+            print(json.dumps(error.diagnostic, indent=2))
+            return 1
+        raise SystemExit(error.diagnostic["diagnostic"]["message"])
     except (OSError, ValueError) as error:
         raise SystemExit(str(error))
     if args.json:

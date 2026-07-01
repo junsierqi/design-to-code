@@ -86,7 +86,9 @@ Figma export JSON files are detected as `figma-json` and include a compact
 uncapped export summary is needed.
 
 Capture a reproducible snapshot from a local file, `file://` URL, or public
-`http(s)` design source:
+`http(s)` design source. URL failures with `--json` return structured
+diagnostics such as `http-error`, `connection-refused`, `timeout`, or
+`dns-error` with a retryable flag:
 
 ```bash
 python skills/design-to-code/scripts/capture_design_snapshot.py ./designs/source.html --output .idea-to-code/design-snapshot --json
