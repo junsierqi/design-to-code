@@ -758,6 +758,78 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("trace scaffold placeholder", result.stdout)
         self.assertIn("Add UI trace rows", result.stdout)
 
+    def test_analyze_design_source_extracts_html_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            html = Path(tmp) / "prototype.html"
+            html.write_text(
+                """
+                <main>
+                  <h1>Projects</h1>
+                  <button id="save" onclick="saveProject()">Save</button>
+                  <img src="hero.png" />
+                </main>
+                """,
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "analyze_design_source.py"
+            result = subprocess.run(
+                [sys.executable, str(script), str(html)],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            payload = json.loads(result.stdout)
+
+        self.assertEqual("html", payload["source_type"])
+        self.assertIn("hero.png", payload["assets"])
+        self.assertEqual("I-1", payload["trace_seeds"][0]["id"])
+        self.assertEqual("#save", payload["trace_seeds"][0]["selector"])
+
+    def test_analyze_design_source_reports_image_and_pdf_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            png = tmp_path / "frame.png"
+            pdf = tmp_path / "mockup.pdf"
+            png.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (320).to_bytes(4, "big") + (200).to_bytes(4, "big") + b"\x08\x02\x00\x00\x00")
+            pdf.write_bytes(b"%PDF-1.4\n1 0 obj << /Type /Page >> endobj\n2 0 obj << /Type /Page >> endobj\n")
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "analyze_design_source.py"
+            png_result = subprocess.run([sys.executable, str(script), str(png)], text=True, capture_output=True, check=True)
+            pdf_result = subprocess.run([sys.executable, str(script), str(pdf)], text=True, capture_output=True, check=True)
+            png_payload = json.loads(png_result.stdout)
+            pdf_payload = json.loads(pdf_result.stdout)
+
+        self.assertEqual("image", png_payload["source_type"])
+        self.assertEqual({"width": 320, "height": 200}, png_payload["dimensions"])
+        self.assertEqual("pdf", pdf_payload["source_type"])
+        self.assertEqual(2, pdf_payload["page_count"])
+
+    def test_analyze_design_source_directory_manifest_and_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "notes.md").write_text("# Flow\n\nClick save.", encoding="utf-8")
+            (root / "figma.json").write_text('{"document":{},"components":{}}', encoding="utf-8")
+            (root / "ignore.bin").write_bytes(b"ignored")
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "analyze_design_source.py"
+            json_result = subprocess.run([sys.executable, str(script), str(root)], text=True, capture_output=True, check=True)
+            md_result = subprocess.run([sys.executable, str(script), str(root), "--format", "markdown"], text=True, capture_output=True, check=True)
+            payload = json.loads(json_result.stdout)
+
+        self.assertEqual("directory", payload["source_type"])
+        self.assertEqual(2, payload["file_count"])
+        self.assertEqual(["figma-json", "text-spec"], sorted(item["source_type"] for item in payload["files"]))
+        self.assertIn("| File | Type | Trace Seeds |", md_result.stdout)
+
+    def test_analyze_design_source_reports_missing_input(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "analyze_design_source.py"
+        result = subprocess.run(
+            [sys.executable, str(script), str(Path("missing-design-source.png"))],
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("design source not found", result.stderr or result.stdout)
+
     def test_dogfood_tooling_surfaces_failed_and_deferred_ui_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

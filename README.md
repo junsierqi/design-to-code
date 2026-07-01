@@ -64,6 +64,12 @@ Generate a Playwright spec scaffold from UI trace rows:
 python skills/design-to-code/scripts/generate_playwright_checks.py --trace trace.json --output e2e/idea-to-code/ui-trace.spec.js --default-url /dashboard
 ```
 
+Create a design-source manifest from a local file or directory:
+
+```bash
+python skills/design-to-code/scripts/analyze_design_source.py ./designs --format markdown
+```
+
 Generate an acceptance report from trace and validation JSON:
 
 ```bash
