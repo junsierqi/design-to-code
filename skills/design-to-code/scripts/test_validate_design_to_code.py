@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 
 
@@ -36,6 +37,19 @@ spec = importlib.util.spec_from_file_location("validate_design_to_code", VALIDAT
 validator = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(validator)
+
+
+def write_test_png(path: Path, width: int, height: int, rgb: tuple[int, int, int]) -> None:
+    raw = b"".join(b"\x00" + bytes(rgb) * width for _ in range(height))
+    compressed = zlib.compress(raw)
+
+    def chunk(name: bytes, data: bytes) -> bytes:
+        import binascii
+
+        return len(data).to_bytes(4, "big") + name + data + binascii.crc32(name + data).to_bytes(4, "big")
+
+    ihdr = width.to_bytes(4, "big") + height.to_bytes(4, "big") + bytes([8, 2, 0, 0, 0])
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", compressed) + chunk(b"IEND", b""))
 
 
 class ValidateDesignToCodeTests(unittest.TestCase):
@@ -829,6 +843,98 @@ class ValidateDesignToCodeTests(unittest.TestCase):
 
         self.assertNotEqual(0, result.returncode)
         self.assertIn("design source not found", result.stderr or result.stdout)
+
+    def test_compare_screenshots_passes_identical_pngs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            expected = tmp_path / "expected.png"
+            actual = tmp_path / "actual.png"
+            write_test_png(expected, 2, 2, (255, 0, 0))
+            write_test_png(actual, 2, 2, (255, 0, 0))
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "compare_screenshots.py"
+            result = subprocess.run(
+                [sys.executable, str(script), "--expected", str(expected), "--actual", str(actual), "--threshold", "0", "--json"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            payload = json.loads(result.stdout)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(0, payload["different_bytes"])
+
+    def test_compare_screenshots_fails_threshold_and_dimension_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            expected = tmp_path / "expected.png"
+            actual = tmp_path / "actual.png"
+            mismatch = tmp_path / "mismatch.png"
+            write_test_png(expected, 2, 2, (255, 0, 0))
+            write_test_png(actual, 2, 2, (0, 0, 255))
+            write_test_png(mismatch, 3, 2, (255, 0, 0))
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "compare_screenshots.py"
+            diff_result = subprocess.run(
+                [sys.executable, str(script), "--expected", str(expected), "--actual", str(actual), "--threshold", "0.01", "--json"],
+                text=True,
+                capture_output=True,
+            )
+            dimension_result = subprocess.run(
+                [sys.executable, str(script), "--expected", str(expected), "--actual", str(mismatch), "--json"],
+                text=True,
+                capture_output=True,
+            )
+            diff_payload = json.loads(diff_result.stdout)
+            dimension_payload = json.loads(dimension_result.stdout)
+
+        self.assertEqual(1, diff_result.returncode)
+        self.assertGreater(diff_payload["diff_ratio"], 0.01)
+        self.assertEqual(1, dimension_result.returncode)
+        self.assertFalse(dimension_payload["same_dimensions"])
+
+    def test_ui_smoke_check_reports_accessibility_and_i18n_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            html = Path(tmp) / "prototype.html"
+            html.write_text(
+                """
+                <main>
+                  <button><svg></svg></button>
+                  <img src="hero.png">
+                  <p>This is a very long visible sentence that should be wrapped carefully on narrow mobile layouts.</p>
+                  <button aria-label="Save">OK</button>
+                </main>
+                """,
+                encoding="utf-8",
+            )
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "ui_smoke_check.py"
+            result = subprocess.run(
+                [sys.executable, str(script), str(html), "--i18n", "--strict", "--json"],
+                text=True,
+                capture_output=True,
+            )
+            payload = json.loads(result.stdout)
+            checks = {finding["check"] for finding in payload["findings"]}
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("accessible-name", checks)
+        self.assertIn("image-alt", checks)
+        self.assertIn("long-text", checks)
+        self.assertIn("i18n-literal", checks)
+
+    def test_ui_smoke_check_passes_named_controls(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            html = Path(tmp) / "prototype.html"
+            html.write_text('<main><button aria-label="Save"></button><img src="hero.png" alt="Hero"></main>', encoding="utf-8")
+            script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "ui_smoke_check.py"
+            result = subprocess.run(
+                [sys.executable, str(script), str(html), "--strict", "--json"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            payload = json.loads(result.stdout)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual([], payload["findings"])
 
     def test_dogfood_tooling_surfaces_failed_and_deferred_ui_checks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

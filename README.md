@@ -70,6 +70,18 @@ Create a design-source manifest from a local file or directory:
 python skills/design-to-code/scripts/analyze_design_source.py ./designs --format markdown
 ```
 
+Compare PNG screenshot artifacts with a byte-diff threshold:
+
+```bash
+python skills/design-to-code/scripts/compare_screenshots.py --expected baseline.png --actual actual.png --threshold 0.01 --json
+```
+
+Run lightweight source-level UI smoke checks:
+
+```bash
+python skills/design-to-code/scripts/ui_smoke_check.py prototype.html --i18n --strict
+```
+
 Generate an acceptance report from trace and validation JSON:
 
 ```bash
