@@ -126,6 +126,40 @@ class ValidateDesignToCodeTests(unittest.TestCase):
             problems,
         )
 
+    def test_profile_output_contract_terms_are_required(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp) / "repo"
+            shutil.copytree(REPO_ROOT, tmp_root, ignore=shutil.ignore_patterns(".git", ".idea-to-code"))
+            skill = tmp_root / "skills" / "design-to-code" / "SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace("[idea-to-code/design-to-code][Role/source]", "[design-to-code]"),
+                encoding="utf-8",
+            )
+
+            problems = validator.validate(tmp_root)
+
+        self.assertIn(
+            "SKILL.md missing required phrase: [idea-to-code/design-to-code][Role/source]",
+            problems,
+        )
+
+    def test_profile_output_contract_requires_read_only_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp) / "repo"
+            shutil.copytree(REPO_ROOT, tmp_root, ignore=shutil.ignore_patterns(".git", ".idea-to-code"))
+            skill = tmp_root / "skills" / "design-to-code" / "SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8").replace("Mode: read-only analysis", "read only review"),
+                encoding="utf-8",
+            )
+
+            problems = validator.validate(tmp_root)
+
+        self.assertIn(
+            "SKILL.md missing required phrase: Mode: read-only analysis",
+            problems,
+        )
+
     def test_html_interaction_extractor_outputs_json_and_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             html = Path(tmp) / "prototype.html"

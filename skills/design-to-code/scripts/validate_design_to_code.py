@@ -49,6 +49,10 @@ REQUIRED_FILES = [
 SKILL_REQUIRED_PHRASES = [
     "idea-to-code",
     "lifecycle foundation",
+    "[idea-to-code/design-to-code][Role/source]",
+    "Mode: read-only analysis",
+    "untracked ordinary analysis",
+    "Do not use a standalone `[design-to-code]` prefix",
     "design-source analysis",
     "UI trace",
     "references/design-source-analysis.md",
@@ -125,6 +129,8 @@ REFERENCE_REQUIREMENTS = {
 
 README_REQUIRED_PHRASES = [
     "idea-to-code",
+    "[idea-to-code/design-to-code][Role/source]",
+    "Mode: read-only analysis",
     "validate_design_to_code.py",
     "extract_html_interactions.py",
     "validate_design_brief.py",

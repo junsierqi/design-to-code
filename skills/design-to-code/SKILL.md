@@ -17,13 +17,19 @@ Use `idea-to-code` for delivery state and gates whenever that skill is available
 - validation type, checkpoints, pre-close verify, finalize, and final verify
 - durable `.idea-to-code/<slug>/` task state
 
-When invoking idea-to-code commands for a design-to-code task, use the profile name `design-to-code` where supported. User-visible lifecycle messages should use the profile-aware prefix:
+When invoking idea-to-code commands for a design-to-code task, use the profile name `design-to-code` where supported. Every user-visible design-to-code message must use the profile-aware role/source prefix when `idea-to-code` is available:
 
 ```text
-[idea-to-code/design-to-code]
+[idea-to-code/design-to-code][Role/source]
 ```
 
-For example, use `implementation ready --profile design-to-code` or `implementation show-ready --profile design-to-code` when the installed idea-to-code version supports profile-aware READY output. If the installed idea-to-code version does not support `--profile`, fall back to `[idea-to-code]` and record that profile-aware visibility was unavailable.
+For example, use `implementation ready --profile design-to-code` or `implementation show-ready --profile design-to-code` when the installed idea-to-code version supports profile-aware READY output. If the installed idea-to-code version does not support `--profile`, fall back to `[idea-to-code][Role/source]` and record that profile-aware visibility was unavailable. Do not use a standalone `[design-to-code]` prefix.
+
+## Execution Visibility
+
+Design-to-code inherits the `idea-to-code` user-visible output contract. This includes commentary updates, plans, validation summaries, review findings, blocker reports, final responses, and follow-up explanations. The role must match the active work: `Planner`, `Implementer`, `Validator`, `Reviewer`, or `Closer`; the source is `agent` unless a real subagent returned usable evidence.
+
+Read-only UI analysis is allowed without implementation edits, but it must not look like a lifecycle bypass. For read-only UI reviews, use `[idea-to-code/design-to-code][Reviewer/agent]` or the current role-specific profile prefix, state `Mode: read-only analysis`, and explicitly say whether the review is tracked in an `idea-to-code` bundle or is untracked ordinary analysis. If it is untracked ordinary analysis, do not claim READY, role-gated delivery, finalize, or accepted implementation evidence. If the analysis leads to code changes, create or resume the bundle and proceed through READY before editing.
 
 Use `design-to-code` for the UI-specific work that generic idea delivery does not define:
 
