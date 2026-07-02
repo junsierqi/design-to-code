@@ -176,6 +176,46 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("I-1", markdown_result.stdout)
         self.assertIn("Expected Behavior", markdown_result.stdout)
 
+    def test_design_brief_validator_accepts_example_and_reports_errors(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "validate_design_brief.py"
+        example = REPO_ROOT / "skills" / "design-to-code" / "examples" / "design-brief.json"
+        passing = subprocess.run(
+            [sys.executable, str(script), str(example), "--json"],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        passing_payload = json.loads(passing.stdout)
+        self.assertTrue(passing_payload["ok"])
+        self.assertEqual("design-to-code.design-brief.v1", passing_payload["schema_version"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            invalid = Path(tmp) / "brief.json"
+            invalid.write_text(
+                json.dumps(
+                    {
+                        "product_goal": "",
+                        "visual_sources": [{"type": "unknown"}],
+                        "interactivity_level": "animated-only",
+                        "target_surfaces": [],
+                        "acceptance_notes": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            failing = subprocess.run(
+                [sys.executable, str(script), str(invalid), "--json"],
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertNotEqual(0, failing.returncode)
+        failing_payload = json.loads(failing.stdout)
+        codes = {error["code"] for error in failing_payload["errors"]}
+        self.assertIn("empty-product-goal", codes)
+        self.assertIn("invalid-source-type", codes)
+        self.assertIn("invalid-interactivity-level", codes)
+
     def test_html_interaction_extractor_preserves_distinct_fallback_elements(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             html = Path(tmp) / "prototype.html"

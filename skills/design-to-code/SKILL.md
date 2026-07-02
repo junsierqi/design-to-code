@@ -27,6 +27,7 @@ For example, use `implementation ready --profile design-to-code` or `implementat
 
 Use `design-to-code` for the UI-specific work that generic idea delivery does not define:
 
+- design brief validation for product goal, visual sources, interactivity level, target surfaces, and acceptance notes
 - design-source analysis across images, HTML prototypes, Figma, PDFs, live URLs, and architecture docs
 - component / interaction / state extraction
 - frontend framework adaptation and missing-backend mocks
@@ -52,22 +53,23 @@ Prefer plain `idea-to-code` when the work is not driven by a visual UI source. P
 ## Runtime Workflow
 
 1. Load `idea-to-code` first and create or resume the delivery bundle.
-2. In the bundle requirements, record that `design-to-code` owns UI-specific analysis and verification.
-3. Read only the design-to-code references needed for the current source and task:
+2. Confirm or validate a compact design brief covering product goal, visual source, interactivity level, target surfaces, and acceptance notes.
+3. In the bundle requirements, record that `design-to-code` owns UI-specific analysis and verification.
+4. Read only the design-to-code references needed for the current source and task:
    - `references/design-source-analysis.md`
    - `references/ui-implementation.md`
    - `references/ui-verification.md`
    - `references/acceptance-report.md`
    - `references/playwright-patterns.md` when browser automation patterns are needed
-4. Build a trace matrix from design source to implementation:
+5. Build a trace matrix from design source to implementation:
    - `C-*` component items
    - `I-*` interaction items
    - `S-*` state items
    - optional `A-*` accessibility or `R-*` responsive items
-5. Map trace items to `idea-to-code` `REQ-*` / `TASK-*` entries before editing.
-6. Implement the smallest coherent UI slice while matching the target project conventions.
-7. Validate behavior and visual evidence with project-native tests, Playwright/runtime checks, screenshots, or source-only checks when runtime is unavailable.
-8. Finalize through `idea-to-code`; include design-to-code trace coverage, screenshots, known visual differences, and deferred backend/API work in the closeout.
+6. Map trace items to `idea-to-code` `REQ-*` / `TASK-*` entries before editing.
+7. Implement the smallest coherent UI slice while matching the target project conventions.
+8. Validate behavior and visual evidence with project-native tests, Playwright/runtime checks, screenshots, or source-only checks when runtime is unavailable.
+9. Finalize through `idea-to-code`; include design-to-code trace coverage, screenshots, known visual differences, and deferred backend/API work in the closeout.
 
 ## Reference Routing
 

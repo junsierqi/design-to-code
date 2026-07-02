@@ -23,6 +23,8 @@ REQUIRED_FILES = [
     "skills/design-to-code/examples/trace.json",
     "skills/design-to-code/examples/validation.json",
     "skills/design-to-code/examples/pipeline-source.html",
+    "skills/design-to-code/examples/design-brief.json",
+    "skills/design-to-code/scripts/validate_design_brief.py",
     "skills/design-to-code/scripts/extract_html_interactions.py",
     "skills/design-to-code/scripts/validate_trace.py",
     "skills/design-to-code/scripts/trace_to_acceptance_matrix.py",
@@ -120,6 +122,7 @@ README_REQUIRED_PHRASES = [
     "idea-to-code",
     "validate_design_to_code.py",
     "extract_html_interactions.py",
+    "validate_design_brief.py",
     "validate_trace.py",
     "trace_to_acceptance_matrix.py",
     "generate_playwright_checks.py",
@@ -156,6 +159,7 @@ AGENT_REQUIRED_PHRASES = [
 
 CLI_SCRIPT_PATHS = [
     "skills/design-to-code/scripts/extract_html_interactions.py",
+    "skills/design-to-code/scripts/validate_design_brief.py",
     "skills/design-to-code/scripts/validate_trace.py",
     "skills/design-to-code/scripts/trace_to_acceptance_matrix.py",
     "skills/design-to-code/scripts/generate_playwright_checks.py",

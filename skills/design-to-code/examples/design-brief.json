@@ -1,0 +1,24 @@
+{
+  "schema_version": "design-to-code.design-brief.v1",
+  "product_goal": "Implement the dashboard screen from the supplied HTML prototype as working UI.",
+  "visual_sources": [
+    {
+      "type": "html",
+      "path": "skills/design-to-code/examples/pipeline-source.html",
+      "description": "Executable prototype for layout and interaction hints."
+    }
+  ],
+  "interactivity_level": "full",
+  "target_surfaces": [
+    "desktop",
+    "mobile"
+  ],
+  "acceptance_notes": [
+    "Primary dashboard components render from the design source.",
+    "Visible controls have implemented behavior or explicit disabled/deferred feedback.",
+    "At least one supplied viewport and one narrow viewport are verified."
+  ],
+  "constraints": [
+    "Use the target project design system when it conflicts with exact prototype styling."
+  ]
+}
