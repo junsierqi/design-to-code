@@ -13,6 +13,11 @@ Before editing, inspect the target project for:
 - test runner and browser/runtime tooling
 - API clients, mock conventions, fixtures, and environment variables
 
+Use `scripts/inspect_frontend_project.py` when a local project root is available
+to seed this discovery with framework, package-manager, script, route, styling,
+and test-tooling signals. Treat the output as implementation guidance, not as a
+substitute for reading the files you will edit.
+
 Prefer existing project patterns over new abstractions. Add a new abstraction only when it removes real duplication or matches a local convention.
 
 ## Framework Adaptation

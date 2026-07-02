@@ -17,6 +17,7 @@ A Codex skill for implementing frontend UI from visual design sources such as sc
 - `skills/design-to-code/references/` - focused UI implementation references
 - `skills/design-to-code/scripts/validate_design_to_code.py` - source-only repository contract validator
 - `skills/design-to-code/scripts/validate_design_brief.py` - design brief gate validator
+- `skills/design-to-code/scripts/inspect_frontend_project.py` - frontend project convention inspector
 - `skills/design-to-code/scripts/extract_html_interactions.py` - HTML prototype interaction extractor
 - `skills/design-to-code/scripts/generate_acceptance_report.py` - Markdown acceptance report generator
 - `skills/design-to-code/scripts/dogfood_playwright_fixture.py` - isolated Playwright dogfood fixture generator and runner
@@ -53,6 +54,12 @@ Validate a design brief before implementation planning:
 
 ```bash
 python skills/design-to-code/scripts/validate_design_brief.py skills/design-to-code/examples/design-brief.json --json
+```
+
+Inspect target frontend project conventions before editing:
+
+```bash
+python skills/design-to-code/scripts/inspect_frontend_project.py . --format markdown
 ```
 
 Extract interaction seed rows from an HTML prototype:

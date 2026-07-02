@@ -216,6 +216,60 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("invalid-source-type", codes)
         self.assertIn("invalid-interactivity-level", codes)
 
+    def test_frontend_project_inspector_detects_framework_and_commands(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "inspect_frontend_project.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "scripts": {"dev": "next dev", "build": "next build", "test": "vitest run", "lint": "next lint"},
+                        "dependencies": {"next": "15.0.0", "react": "19.0.0", "tailwindcss": "4.0.0"},
+                        "devDependencies": {"@playwright/test": "1.0.0", "vitest": "2.0.0"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (root / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n", encoding="utf-8")
+            (root / "src" / "app").mkdir(parents=True)
+            (root / "src" / "app" / "page.tsx").write_text("export default function Page() { return null }\n", encoding="utf-8")
+            json_result = subprocess.run(
+                [sys.executable, str(script), str(root)],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            markdown_result = subprocess.run(
+                [sys.executable, str(script), str(root), "--format", "markdown"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        payload = json.loads(json_result.stdout)
+        self.assertEqual("pnpm", payload["package_manager"])
+        self.assertEqual("Next.js", payload["framework"]["name"])
+        self.assertIn("Tailwind CSS", payload["style_system"]["systems"])
+        self.assertIn("Playwright", payload["test_tooling"]["tools"])
+        self.assertIn("pnpm build", payload["recommended_commands"])
+        self.assertIn("src\\app\\page.tsx", payload["routes"][0])
+        self.assertIn("Frontend Project Inspection", markdown_result.stdout)
+
+    def test_frontend_project_inspector_handles_minimal_project(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "inspect_frontend_project.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(
+                [sys.executable, str(script), tmp],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        payload = json.loads(result.stdout)
+        codes = {finding["code"] for finding in payload["findings"]}
+        self.assertEqual("unknown", payload["framework"]["name"])
+        self.assertIn("missing-package-json", codes)
+
     def test_html_interaction_extractor_preserves_distinct_fallback_elements(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             html = Path(tmp) / "prototype.html"
