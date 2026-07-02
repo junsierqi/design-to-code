@@ -314,6 +314,59 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual("blocked", blocked_payload["status"])
         self.assertEqual("browser command not provided", blocked_payload["browser_run"]["reason"])
 
+    def test_asset_manifest_validator_accepts_example_and_reports_errors(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "validate_asset_manifest.py"
+        example = REPO_ROOT / "skills" / "design-to-code" / "examples" / "asset-manifest.json"
+        passing = subprocess.run(
+            [sys.executable, str(script), str(example), "--json"],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        passing_payload = json.loads(passing.stdout)
+        self.assertTrue(passing_payload["ok"])
+        self.assertEqual(3, passing_payload["asset_count"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            invalid = Path(tmp) / "assets.json"
+            invalid.write_text(
+                json.dumps(
+                    {
+                        "assets": [
+                            {
+                                "id": "logo",
+                                "type": "logo",
+                                "required": True,
+                                "source_evidence": "header",
+                                "handling_decision": "",
+                                "status": "implemented",
+                            },
+                            {
+                                "id": "font",
+                                "type": "font",
+                                "required": True,
+                                "source_evidence": "typography",
+                                "handling_decision": "Need licensed file",
+                                "status": "deferred",
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            failing = subprocess.run(
+                [sys.executable, str(script), str(invalid), "--json"],
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertNotEqual(0, failing.returncode)
+        failing_payload = json.loads(failing.stdout)
+        codes = {error["code"] for error in failing_payload["errors"]}
+        self.assertIn("missing-handling-decision", codes)
+        self.assertIn("missing-implementation-target", codes)
+        self.assertIn("missing-deferred-reason", codes)
+
     def test_html_interaction_extractor_preserves_distinct_fallback_elements(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             html = Path(tmp) / "prototype.html"

@@ -121,6 +121,10 @@ Create an asset inventory when the design includes images, logos, illustrations,
 |---|---|---|---|
 | logo | design export | existing brand asset | renders at header size |
 
+Use `scripts/validate_asset_manifest.py` to check that required assets have
+source evidence, handling decisions, and implementation targets or deferred
+reasons before closeout.
+
 Rules:
 
 - prefer existing project assets and icon libraries

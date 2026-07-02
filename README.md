@@ -19,6 +19,7 @@ A Codex skill for implementing frontend UI from visual design sources such as sc
 - `skills/design-to-code/scripts/validate_design_brief.py` - design brief gate validator
 - `skills/design-to-code/scripts/inspect_frontend_project.py` - frontend project convention inspector
 - `skills/design-to-code/scripts/run_visual_verification.py` - visual verification matrix runner
+- `skills/design-to-code/scripts/validate_asset_manifest.py` - design asset handling manifest validator
 - `skills/design-to-code/scripts/extract_html_interactions.py` - HTML prototype interaction extractor
 - `skills/design-to-code/scripts/generate_acceptance_report.py` - Markdown acceptance report generator
 - `skills/design-to-code/scripts/dogfood_playwright_fixture.py` - isolated Playwright dogfood fixture generator and runner
@@ -67,6 +68,12 @@ Plan or run a visual verification matrix:
 
 ```bash
 python skills/design-to-code/scripts/run_visual_verification.py skills/design-to-code/examples/visual-verification.json --json
+```
+
+Validate design asset handling decisions:
+
+```bash
+python skills/design-to-code/scripts/validate_asset_manifest.py skills/design-to-code/examples/asset-manifest.json --json
 ```
 
 Extract interaction seed rows from an HTML prototype:

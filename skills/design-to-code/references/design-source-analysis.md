@@ -170,6 +170,12 @@ Before implementation, confirm the analysis covers:
 - text length and localization risks
 - accessibility-relevant labels, focus, and contrast cues
 
+When the design includes brand images, custom icons, fonts, media, or token
+decisions, create or validate an asset manifest with
+`scripts/validate_asset_manifest.py`. Required assets should carry source
+evidence, a handling decision, and either an implementation target or a
+deferred reason.
+
 ## Ambiguity Handling
 
 Decide ordinary UI details without stopping:

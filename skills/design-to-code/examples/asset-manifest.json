@@ -1,0 +1,32 @@
+{
+  "schema_version": "design-to-code.asset-manifest.v1",
+  "assets": [
+    {
+      "id": "asset-hero-illustration",
+      "type": "image",
+      "required": true,
+      "source_evidence": "Figma frame Dashboard / hero panel",
+      "handling_decision": "Reuse exported design image after optimization.",
+      "implementation_target": "src/assets/dashboard-hero.png",
+      "status": "implemented"
+    },
+    {
+      "id": "asset-brand-font",
+      "type": "font",
+      "required": true,
+      "source_evidence": "Figma typography style Display/Brand",
+      "handling_decision": "Use project-approved fallback font until licensed font is available.",
+      "deferred_reason": "Licensed font file is not included in the design handoff.",
+      "status": "deferred"
+    },
+    {
+      "id": "asset-export-icon",
+      "type": "icon",
+      "required": true,
+      "source_evidence": "Export button in HTML prototype",
+      "handling_decision": "Use existing icon library export glyph.",
+      "implementation_target": "Icon name: Download",
+      "status": "reused"
+    }
+  ]
+}
