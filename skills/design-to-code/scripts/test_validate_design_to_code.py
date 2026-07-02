@@ -270,6 +270,50 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual("unknown", payload["framework"]["name"])
         self.assertIn("missing-package-json", codes)
 
+    def test_visual_verification_runner_plans_example(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "run_visual_verification.py"
+        example = REPO_ROOT / "skills" / "design-to-code" / "examples" / "visual-verification.json"
+        result = subprocess.run(
+            [sys.executable, str(script), str(example), "--json"],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["ok"])
+        self.assertEqual("planned", payload["status"])
+        self.assertEqual(2, payload["summary"]["check_count"])
+        self.assertEqual("dashboard:desktop", payload["checks"][0]["id"])
+
+    def test_visual_verification_runner_browser_command_and_blocked_state(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "run_visual_verification.py"
+        example = REPO_ROOT / "skills" / "design-to-code" / "examples" / "visual-verification.json"
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "browser.json"
+            command = f"\"{sys.executable}\" -c \"import pathlib; pathlib.Path(r'{marker}').write_text('ok', encoding='utf-8')\""
+            passed = subprocess.run(
+                [sys.executable, str(script), str(example), "--run-browser", "--browser-command", command, "--json"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            blocked = subprocess.run(
+                [sys.executable, str(script), str(example), "--run-browser", "--json"],
+                text=True,
+                capture_output=True,
+            )
+            marker_exists = marker.exists()
+
+        passed_payload = json.loads(passed.stdout)
+        blocked_payload = json.loads(blocked.stdout)
+        self.assertEqual("pass", passed_payload["status"])
+        self.assertEqual("pass", passed_payload["browser_run"]["status"])
+        self.assertTrue(marker_exists)
+        self.assertNotEqual(0, blocked.returncode)
+        self.assertEqual("blocked", blocked_payload["status"])
+        self.assertEqual("browser command not provided", blocked_payload["browser_run"]["reason"])
+
     def test_html_interaction_extractor_preserves_distinct_fallback_elements(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             html = Path(tmp) / "prototype.html"

@@ -1,0 +1,28 @@
+{
+  "schema_version": "design-to-code.visual-verification.v1",
+  "base_url": "http://127.0.0.1:4173",
+  "routes": [
+    {
+      "name": "dashboard",
+      "path": "/dashboard",
+      "screenshot": "dashboard-desktop.png"
+    }
+  ],
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "checks": [
+    "no unexpected console errors",
+    "primary controls visible and clickable",
+    "narrow viewport does not overlap text"
+  ]
+}

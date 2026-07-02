@@ -40,6 +40,11 @@ Define a viewport matrix for user-facing screens:
 
 At minimum, verify the supplied design viewport and one narrow viewport when the UI is responsive. Record any skipped viewport with a reason.
 
+Use `scripts/run_visual_verification.py` to turn route and viewport expectations
+into a machine-readable verification plan. When a browser command is available,
+run it through the same config so blocked browser dependencies are reported as
+`blocked` instead of being confused with passing visual evidence.
+
 ## Visual Diff And Screenshot Baselines
 
 When a baseline design screenshot is available, use screenshots to compare:
