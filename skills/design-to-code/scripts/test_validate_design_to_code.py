@@ -319,10 +319,87 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertEqual("planned", payload["status"])
         self.assertEqual(2, payload["summary"]["check_count"])
         self.assertEqual("dashboard:desktop", payload["checks"][0]["id"])
+        screenshots = [check["screenshot"] for check in payload["checks"]]
+        self.assertEqual(["dashboard-desktop.png", "dashboard-mobile.png"], screenshots)
+        self.assertEqual(len(screenshots), len(set(screenshots)))
+
+    def test_visual_verification_runner_makes_screenshots_unique_across_routes(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "run_visual_verification.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "visual.json"
+            config.write_text(
+                json.dumps(
+                    {
+                        "routes": [
+                            {"name": "alpha", "path": "/alpha", "screenshot": "same.png"},
+                            {"name": "beta", "path": "/beta", "screenshot": "same.png"},
+                        ],
+                        "viewports": [
+                            {"name": "desktop", "width": 1200, "height": 800},
+                            {"name": "mobile", "width": 390, "height": 844},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, str(script), str(config), "--json"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        payload = json.loads(result.stdout)
+        screenshots = [check["screenshot"] for check in payload["checks"]]
+        self.assertEqual(
+            ["same-alpha-desktop.png", "same-alpha-mobile.png", "same-beta-desktop.png", "same-beta-mobile.png"],
+            screenshots,
+        )
+        self.assertEqual(len(screenshots), len(set(screenshots)))
+
+    def test_visual_verification_runner_handles_overlapping_route_suffixes(self) -> None:
+        script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "run_visual_verification.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "visual.json"
+            config.write_text(
+                json.dumps(
+                    {
+                        "routes": [
+                            {"name": "alpha", "path": "/alpha", "screenshot": "same-alpha.png"},
+                            {"name": "same-alpha", "path": "/same-alpha", "screenshot": "same-alpha.png"},
+                        ],
+                        "viewports": [
+                            {"name": "desktop", "width": 1200, "height": 800},
+                            {"name": "mobile", "width": 390, "height": 844},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, str(script), str(config), "--json"],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        payload = json.loads(result.stdout)
+        screenshots = [check["screenshot"] for check in payload["checks"]]
+        self.assertEqual(
+            [
+                "same-alpha-alpha-desktop.png",
+                "same-alpha-alpha-mobile.png",
+                "same-alpha-same-alpha-desktop.png",
+                "same-alpha-same-alpha-mobile.png",
+            ],
+            screenshots,
+        )
+        self.assertEqual(len(screenshots), len(set(screenshots)))
 
     def test_visual_verification_runner_browser_command_and_blocked_state(self) -> None:
         script = REPO_ROOT / "skills" / "design-to-code" / "scripts" / "run_visual_verification.py"
         example = REPO_ROOT / "skills" / "design-to-code" / "examples" / "visual-verification.json"
+        self.assertNotIn("shell=True", script.read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as tmp:
             marker = Path(tmp) / "browser.json"
             command = f"\"{sys.executable}\" -c \"import pathlib; pathlib.Path(r'{marker}').write_text('ok', encoding='utf-8')\""
@@ -343,6 +420,7 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         blocked_payload = json.loads(blocked.stdout)
         self.assertEqual("pass", passed_payload["status"])
         self.assertEqual("pass", passed_payload["browser_run"]["status"])
+        self.assertEqual(sys.executable, passed_payload["browser_run"]["argv"][0])
         self.assertTrue(marker_exists)
         self.assertNotEqual(0, blocked.returncode)
         self.assertEqual("blocked", blocked_payload["status"])

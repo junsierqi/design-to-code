@@ -5,7 +5,7 @@
     {
       "name": "dashboard",
       "path": "/dashboard",
-      "screenshot": "dashboard-desktop.png"
+      "screenshot": "dashboard.png"
     }
   ],
   "viewports": [

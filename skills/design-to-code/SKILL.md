@@ -17,6 +17,8 @@ Use `idea-to-code` for delivery state and gates whenever that skill is available
 - validation type, checkpoints, pre-close verify, finalize, and final verify
 - durable `.idea-to-code/<slug>/` task state
 
+When `idea-to-code` is available, design-to-code must obey all idea-to-code rules, lifecycle gates, evidence requirements, visibility requirements, and final handoff rules. The UI-specific instructions in this skill add domain guidance; they do not narrow, replace, or bypass any idea-to-code requirement.
+
 When invoking idea-to-code commands for a design-to-code task, use the profile name `design-to-code` where supported. Every user-visible design-to-code message must use the profile-aware role/source prefix when `idea-to-code` is available:
 
 ```text

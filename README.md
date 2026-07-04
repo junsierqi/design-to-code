@@ -4,6 +4,8 @@ A Codex skill for implementing frontend UI from visual design sources such as sc
 
 `design-to-code` is a UI-specialized profile on top of `idea-to-code`. `idea-to-code` owns delivery lifecycle state, requirements, role gates, verification evidence, checkpoints, and closeout. `design-to-code` owns the UI-specific guidance for design-source analysis, component/interaction/state traceability, missing-backend mocks, browser verification, screenshots, and visual acceptance reporting.
 
+When `idea-to-code` is available, `design-to-code` must obey all `idea-to-code` rules, lifecycle gates, evidence requirements, visibility requirements, and final handoff rules. The UI-specific guidance extends that lifecycle; it does not replace or bypass it.
+
 When `idea-to-code` is available, user-visible design-to-code output uses the profile prefix `[idea-to-code/design-to-code][Role/source]`. Read-only UI analysis must still state `Mode: read-only analysis` and declare whether it is tracked in a bundle or untracked ordinary analysis.
 
 ## Use When

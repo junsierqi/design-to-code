@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -47,18 +48,38 @@ def validate_config(config: Any) -> list[dict[str, str]]:
     return errors
 
 
+def slug(value: str) -> str:
+    return value.lower().replace(" ", "-")
+
+
+def screenshot_path(route: dict[str, Any], route_name: str, viewport_name: str, route_count: int, viewport_count: int) -> Path:
+    screenshot = route.get("screenshot")
+    route_slug = slug(route_name)
+    viewport_slug = slug(viewport_name)
+    if not screenshot:
+        return Path(f"{route_slug}-{viewport_slug}.png")
+    path = Path(str(screenshot))
+    suffixes: list[str] = []
+    if route_count > 1:
+        suffixes.append(route_slug)
+    if viewport_count > 1:
+        suffixes.append(viewport_slug)
+    if not suffixes:
+        return path
+    return path.with_name(f"{path.stem}-{'-'.join(suffixes)}{path.suffix}")
+
+
 def planned_checks(config: dict[str, Any], artifact_root: Path) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
-    for route in list_of_dicts(config.get("routes")):
+    routes = list_of_dicts(config.get("routes"))
+    viewports = list_of_dicts(config.get("viewports"))
+    for route in routes:
         route_name = str(route.get("name") or "route")
         target = str(route.get("url") or route.get("path") or "")
-        for viewport in list_of_dicts(config.get("viewports")):
+        for viewport in viewports:
             viewport_name = str(viewport.get("name") or "viewport")
-            screenshot = route.get("screenshot")
-            if not screenshot:
-                screenshot = f"{route_name}-{viewport_name}.png".lower().replace(" ", "-")
-            screenshot_path = Path(str(screenshot))
-            screenshot_exists = (artifact_root / screenshot_path).exists() if not screenshot_path.is_absolute() else screenshot_path.exists()
+            screenshot = screenshot_path(route, route_name, viewport_name, len(routes), len(viewports))
+            screenshot_exists = (artifact_root / screenshot).exists() if not screenshot.is_absolute() else screenshot.exists()
             checks.append(
                 {
                     "id": f"{route_name}:{viewport_name}",
@@ -69,7 +90,7 @@ def planned_checks(config: dict[str, Any], artifact_root: Path) -> list[dict[str
                         "width": viewport.get("width"),
                         "height": viewport.get("height"),
                     },
-                    "screenshot": str(screenshot_path),
+                    "screenshot": str(screenshot),
                     "screenshot_exists": screenshot_exists,
                     "status": "planned",
                 }
@@ -88,7 +109,28 @@ def run_browser_command(command: str, config: Path, output: Path, timeout: int) 
         }
     expanded = command.replace("{config}", str(config)).replace("{output}", str(output))
     try:
-        result = subprocess.run(expanded, shell=True, text=True, capture_output=True, timeout=timeout)
+        argv = shlex.split(expanded)
+    except ValueError as exc:
+        return {
+            "status": "fail",
+            "reason": f"browser command could not be parsed: {exc}",
+            "returncode": None,
+            "stdout": "",
+            "stderr": "",
+            "command": expanded,
+        }
+    try:
+        result = subprocess.run(argv, text=True, capture_output=True, timeout=timeout)
+    except FileNotFoundError as exc:
+        return {
+            "status": "blocked",
+            "reason": f"browser command not found: {exc.filename}",
+            "returncode": None,
+            "stdout": "",
+            "stderr": str(exc),
+            "command": expanded,
+            "argv": argv,
+        }
     except subprocess.TimeoutExpired as exc:
         return {
             "status": "fail",
@@ -96,6 +138,8 @@ def run_browser_command(command: str, config: Path, output: Path, timeout: int) 
             "returncode": None,
             "stdout": exc.stdout or "",
             "stderr": exc.stderr or "",
+            "command": expanded,
+            "argv": argv,
         }
     return {
         "status": "pass" if result.returncode == 0 else "fail",
@@ -104,6 +148,7 @@ def run_browser_command(command: str, config: Path, output: Path, timeout: int) 
         "stdout": result.stdout,
         "stderr": result.stderr,
         "command": expanded,
+        "argv": argv,
     }
 
 

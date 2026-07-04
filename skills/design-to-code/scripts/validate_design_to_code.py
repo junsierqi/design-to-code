@@ -49,6 +49,7 @@ REQUIRED_FILES = [
 SKILL_REQUIRED_PHRASES = [
     "idea-to-code",
     "lifecycle foundation",
+    "must obey all idea-to-code rules",
     "[idea-to-code/design-to-code][Role/source]",
     "Mode: read-only analysis",
     "untracked ordinary analysis",
@@ -129,6 +130,7 @@ REFERENCE_REQUIREMENTS = {
 
 README_REQUIRED_PHRASES = [
     "idea-to-code",
+    "must obey all `idea-to-code` rules",
     "[idea-to-code/design-to-code][Role/source]",
     "Mode: read-only analysis",
     "validate_design_to_code.py",
