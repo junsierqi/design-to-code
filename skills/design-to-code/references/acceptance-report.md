@@ -119,4 +119,6 @@ The final chat response must follow the active `idea-to-code` closeout contract.
 - screenshot/report paths when available
 - unresolved visual or backend risks
 
+For tracked work, use `render-status --profile design-to-code` when supported and keep `Next Action` as the final formal field. If the final assistant-visible body can be checked before sending, run `output-compliance check --kind formal-status`; otherwise disclose the `host-required` boundary instead of claiming final-body enforcement.
+
 Use `Progress` or `Blocked` instead of `Completed` if UI behavior, trace coverage, or validation evidence is missing.

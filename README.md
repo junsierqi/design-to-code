@@ -6,6 +6,8 @@ A Codex skill for implementing frontend UI from visual design sources such as sc
 
 When `idea-to-code` is available, `design-to-code` must obey all `idea-to-code` rules, lifecycle gates, evidence requirements, visibility requirements, and final handoff rules. The UI-specific guidance extends that lifecycle; it does not replace or bypass it.
 
+Profile wrapping is not a bypass. A valid installed design-to-code runtime depends on the installed base idea-to-code hard controls: `install-parity check`, `output-compliance check`, `output-compliance transcript-audit` when transcript evidence exists, and `host-hook final-response-contract`.
+
 When `idea-to-code` is available, user-visible design-to-code output uses the profile prefix `[idea-to-code/design-to-code][Role/source]`. Read-only UI analysis must still state `Mode: read-only analysis` and declare whether it is tracked in a bundle or untracked ordinary analysis.
 
 ## Use When
@@ -217,7 +219,7 @@ Verify source/installed file hash parity:
 python scripts/install_skill.py --verify
 ```
 
-The installer reports whether `idea-to-code` is installed next to the target `design-to-code` skill.
+The installer reports whether `idea-to-code` is installed next to the target `design-to-code` skill and whether the installed base idea-to-code runtime exposes the current hard controls. Source/installed design-to-code parity alone is not enough if the base idea-to-code runtime is stale.
 
 ## Install
 

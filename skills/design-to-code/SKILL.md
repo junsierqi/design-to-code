@@ -19,6 +19,8 @@ Use `idea-to-code` for delivery state and gates whenever that skill is available
 
 When `idea-to-code` is available, design-to-code must obey all idea-to-code rules, lifecycle gates, evidence requirements, visibility requirements, and final handoff rules. The UI-specific instructions in this skill add domain guidance; they do not narrow, replace, or bypass any idea-to-code requirement.
 
+Profile wrapping is not an exemption. For tracked design-to-code work, the installed base `idea-to-code` skill must provide the same hard controls used by direct idea-to-code work: `install-parity check`, `output-compliance check`, `output-compliance transcript-audit` when transcript evidence exists, and `host-hook final-response-contract`. If any of those base controls are unavailable or unverified, report that under `Unverified Items` or `Residual Risks`; do not claim the design-to-code profile is fully lifecycle-compliant.
+
 When invoking idea-to-code commands for a design-to-code task, use the profile name `design-to-code` where supported. Every user-visible design-to-code message must use the profile-aware role/source prefix when `idea-to-code` is available:
 
 ```text
@@ -30,6 +32,8 @@ For example, use `implementation ready --profile design-to-code` or `implementat
 ## Execution Visibility
 
 Design-to-code inherits the `idea-to-code` user-visible output contract. This includes commentary updates, plans, validation summaries, review findings, blocker reports, final responses, and follow-up explanations. The role must match the active work: `Planner`, `Implementer`, `Validator`, `Reviewer`, or `Closer`; the source is `agent` unless a real subagent returned usable evidence.
+
+Final tracked handoffs must use `render-status --profile design-to-code` when supported and must keep `Next Action` as the final formal field. When the final assistant-visible body is available before sending, run `output-compliance check --kind formal-status` against the generated `render-status` output and the final body. A design-to-code closeout that only says the UI is done, or only shows `[idea-to-code/design-to-code][Closer/agent]`, is noncompliant after tracked work.
 
 Read-only UI analysis is allowed without implementation edits, but it must not look like a lifecycle bypass. For read-only UI reviews, use `[idea-to-code/design-to-code][Reviewer/agent]` or the current role-specific profile prefix, state `Mode: read-only analysis`, and explicitly say whether the review is tracked in an `idea-to-code` bundle or is untracked ordinary analysis. If it is untracked ordinary analysis, do not claim READY, role-gated delivery, finalize, or accepted implementation evidence. If the analysis leads to code changes, create or resume the bundle and proceed through READY before editing.
 
@@ -140,7 +144,10 @@ For this skill repository itself, run:
 python skills/design-to-code/scripts/validate_design_to_code.py --root .
 python skills/design-to-code/scripts/validate_design_to_code.py --root . --strict
 python skills/design-to-code/scripts/test_validate_design_to_code.py
+python scripts/install_skill.py --verify
 ```
+
+`python scripts/install_skill.py --verify` must pass both design-to-code source/installed parity and the installed idea-to-code foundation checks. It is not enough for the design-to-code files to match if the installed base idea-to-code skill lacks the current hard controls.
 
 For user projects, prefer real product-path validation. When that is unavailable, record the lower validation type honestly in the `idea-to-code` bundle.
 
