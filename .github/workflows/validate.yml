@@ -1,0 +1,40 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      CODEX_HOME: ${{ runner.temp }}/codex-home
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python sources
+        run: python -m compileall -q scripts skills/design-to-code/scripts
+
+      - name: Validate repository contract
+        run: python skills/design-to-code/scripts/validate_design_to_code.py --root .
+
+      - name: Validate strict repository contract
+        run: python skills/design-to-code/scripts/validate_design_to_code.py --root . --strict
+
+      - name: Run regression tests
+        run: python skills/design-to-code/scripts/test_validate_design_to_code.py --root .
+
+      - name: Install skill into isolated CODEX_HOME
+        run: python scripts/install_skill.py --force
+
+      - name: Verify isolated install parity
+        run: python scripts/install_skill.py --verify
