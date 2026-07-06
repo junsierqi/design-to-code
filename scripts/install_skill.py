@@ -10,6 +10,11 @@ import shutil
 from pathlib import Path
 
 
+EXCLUDED_DIR_NAMES = {"__pycache__"}
+EXCLUDED_FILE_NAMES = {".DS_Store"}
+EXCLUDED_SUFFIXES = {".pyc", ".pyo", ".pyd", ".bak"}
+
+
 def default_target() -> Path:
     home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
     return home / "skills" / "design-to-code"
@@ -27,11 +32,24 @@ def file_hash(path: Path) -> str:
     return digest.hexdigest()
 
 
+def is_publish_file(rel_path: Path) -> bool:
+    return (
+        not any(part in EXCLUDED_DIR_NAMES for part in rel_path.parts)
+        and rel_path.name not in EXCLUDED_FILE_NAMES
+        and rel_path.suffix not in EXCLUDED_SUFFIXES
+    )
+
+
+def copy_ignore(_directory: str, names: list[str]) -> set[str]:
+    return {name for name in names if not is_publish_file(Path(name))}
+
+
 def file_manifest(root: Path) -> dict[str, str]:
     manifest: dict[str, str] = {}
     for path in sorted(root.rglob("*")):
-        if path.is_file():
-            manifest[path.relative_to(root).as_posix()] = file_hash(path)
+        rel_path = path.relative_to(root)
+        if path.is_file() and is_publish_file(rel_path):
+            manifest[rel_path.as_posix()] = file_hash(path)
     return manifest
 
 
@@ -78,7 +96,7 @@ def install(repo_root: Path, target: Path, dry_run: bool = False, force: bool = 
     if target.exists():
         shutil.rmtree(target)
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, target)
+    shutil.copytree(source, target, ignore=copy_ignore)
     return actions
 
 

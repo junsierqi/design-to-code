@@ -50,9 +50,18 @@ Run these commands from the repository root before publishing changes:
 python skills/design-to-code/scripts/validate_design_to_code.py --root .
 python skills/design-to-code/scripts/validate_design_to_code.py --root . --strict
 python skills/design-to-code/scripts/test_validate_design_to_code.py --root .
+python scripts/install_skill.py --verify
 ```
 
 These are source-only checks for this skill repository. They do not replace runtime verification inside a downstream frontend project.
+
+When verifying install parity without relying on the user's global Codex skill directory, install into an isolated target first:
+
+```bash
+export CODEX_HOME="$(mktemp -d)"
+python scripts/install_skill.py --force
+python scripts/install_skill.py --verify
+```
 
 ## Tooling
 
