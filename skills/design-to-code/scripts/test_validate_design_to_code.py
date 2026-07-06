@@ -286,7 +286,7 @@ class ValidateDesignToCodeTests(unittest.TestCase):
         self.assertIn("Tailwind CSS", payload["style_system"]["systems"])
         self.assertIn("Playwright", payload["test_tooling"]["tools"])
         self.assertIn("pnpm build", payload["recommended_commands"])
-        self.assertIn("src\\app\\page.tsx", payload["routes"][0])
+        self.assertIn("src/app/page.tsx", payload["routes"][0].replace("\\", "/"))
         self.assertIn("Frontend Project Inspection", markdown_result.stdout)
 
     def test_frontend_project_inspector_handles_minimal_project(self) -> None:
